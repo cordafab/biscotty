@@ -199,12 +199,15 @@ The product therefore labels observation gaps and avoids individual cookie-use c
 Checked on 25 October 2026.
 [Mozilla webNavigation API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation).
 [Mozilla onCommitted](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/onCommitted).
+[Mozilla getFrame](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/getFrame).
 [Mozilla document identity guide](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Work_with_documentId).
 [Mozilla webRequest compatibility data](https://github.com/mdn/browser-compat-data/blob/main/webextensions/api/webRequest.json).
 
 Navigation events require `webNavigation` permission.
 Committed-navigation events identify the tab, frame, document, and parent document when available.
 Document identity distinguishes loaded documents from their reusable frame identifiers.
+`getFrame` returns the current top-level document identity for native tab and frame identifiers.
+Its `documentId` support begins with Firefox 153 in the checked compatibility data.
 The checked compatibility data records `webRequest` document identity support from Firefox 153.
 The design does not depend on `documentLifecycle`, whose Firefox support is absent in that data.
 

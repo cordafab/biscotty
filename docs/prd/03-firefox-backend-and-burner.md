@@ -232,6 +232,7 @@ The interface can describe `completed` with skips as “Completed with skipped c
 - **BURN-25.** An active burn MUST NOT resume after browser restart, extension reload, or lost background execution.
 - **BURN-26.** A retained marker without live execution MUST produce an interruption notice on the next initialization.
 - **BURN-27.** Acknowledgment MUST clear the interruption marker before another burn starts.
+- **BURN-28.** Cancellation MUST reject an operation that has reached a terminal state, including during result persistence or marker cleanup.
 
 ## Temporary state without history
 
@@ -275,6 +276,7 @@ Production logs must not contain cookie metadata or browsing URLs.
 | BURN-A15 | Simultaneous starts from two windows produce one active burn. |
 | BURN-A16 | Permission loss during execution stops further calls and reports incomplete coverage. |
 | BURN-A17 | Repeated safe selectors retain bounded coverage; encoded paths, IDNs, and IPv6 never bypass selector safety. |
+| BURN-A18 | Cancellation during terminal result persistence or marker cleanup is rejected; the saved result remains terminal and dismissible. |
 
 ### Current Site acceptance criteria
 

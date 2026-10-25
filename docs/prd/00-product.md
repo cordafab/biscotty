@@ -40,7 +40,7 @@ Existing protection remains usable when native container metadata causes portabl
 - **PROD-24.** The interface MUST distinguish stored-cookie association from verified cookie transmission or use.
 - **PROD-25.** Page observation MUST enforce the [resource limits](10-bounded-observation.md) and identify incomplete coverage.
 - **PROD-26.** Mutation admission MUST enforce the [request limits](11-bounded-requests.md) before execution.
-- **PROD-27.** Version `0.1.4` publishing preparation MUST satisfy the [0.1 publishing requirements](09-publishing-0.1.md).
+- **PROD-27.** Version `0.1.5` publishing preparation MUST satisfy the [0.1 publishing requirements](09-publishing-0.1.md).
 
 The tool allowance does not permit third-party libraries or required dependency installation.
 

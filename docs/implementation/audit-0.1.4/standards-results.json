@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-10-25T22:18:04.374Z",
+  "node": "v26.12.1",
+  "platform": "darwin",
+  "passed": 9,
+  "failed": 0,
+  "results": [
+    {
+      "name": "domain and rule validation reject ambiguous or executable inputs",
+      "passed": true,
+      "ms": 5.8968750000000085
+    },
+    {
+      "name": "selector protection property across domain, path, name and store scopes",
+      "passed": true,
+      "ms": 98.821958,
+      "comparisons": 72576
+    },
+    {
+      "name": "import rejects oversized, undeclared and prototype-shaped fields",
+      "passed": true,
+      "ms": 2.578000000000003
+    },
+    {
+      "name": "all import conflict choices preserve exact reviewed store scopes",
+      "passed": true,
+      "ms": 3.2453339999999855
+    },
+    {
+      "name": "gateway rejects webpages, other extensions, private pages, query and fragment variants",
+      "passed": true,
+      "ms": 4.947000000000003
+    },
+    {
+      "name": "gateway deduplication, ownership and capacity precede mutation effects",
+      "passed": true,
+      "ms": 13.754458
+    },
+    {
+      "name": "opaque handles bind kind and document owner",
+      "passed": true,
+      "ms": 0.1351669999999956
+    },
+    {
+      "name": "DOM helper appends hostile labels as text, without HTML parsing",
+      "passed": true,
+      "ms": 0.10845799999998462
+    },
+    {
+      "name": "frontend dirty editor preserves drafts and import requires every mapping",
+      "passed": true,
+      "ms": 0.36070899999998574
+    }
+  ]
+}

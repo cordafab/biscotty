@@ -105,6 +105,11 @@ export function createFirefoxAdapter(api = browser) {
       if (!tab) throw new BiscottyError('CONTEXT_UNAVAILABLE', 'The active page is unavailable.');
       return { id: tab.id, url: tab.url, cookieStoreId: tab.cookieStoreId, incognito: tab.incognito };
     },
+    async getDocumentId(tabId) {
+      const frame = await api.webNavigation.getFrame({ tabId, frameId: 0 });
+      const id = frame?.documentId;
+      return !frame?.errorOccurred && typeof id === 'string' && id.length > 0 && id.length <= 256 ? id : null;
+    },
     async listCookies(storeId) {
       const cookies = await api.cookies.getAll({ storeId, partitionKey: {}, firstPartyDomain: null });
       return cookies.map(sanitizeCookie);

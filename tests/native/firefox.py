@@ -30,6 +30,8 @@ class SiteFixture(BaseHTTPRequestHandler):
         body = '<!doctype html><title>Observation fixture</title>'
         if self.path == '/page':
             body += '<iframe src="http://127.0.0.1:%d/frame"></iframe>' % port
+        elif self.path == '/restore-page':
+            body += '<img src="http://127.0.0.1:%d/restore-resource">' % port
         elif self.path == '/frame':
             body += '<iframe src="/nested"></iframe>'
         self.wfile.write(body.encode())

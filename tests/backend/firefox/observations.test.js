@@ -8,6 +8,8 @@ function fixture(limits) {
   let listener;
   let stored = {};
   let writes = 0;
+  let documentId = null;
+  adapter.getDocumentId = async () => documentId;
   adapter.onSiteActivity = fn => { listener = fn; };
   adapter.readSiteObservations = async () => structuredClone(stored);
   adapter.writeSiteObservations = async value => { writes++; stored = structuredClone(value); };
@@ -15,7 +17,10 @@ function fixture(limits) {
   const invalidations = [];
   const observations = createObservations({ adapter, onInvalidate: id => invalidations.push(id), limits });
   const tab = { id: 1, url: 'https://shop.example.com/path?secret=yes', cookieStoreId: 'firefox-container-4', incognito: false };
-  const emit = event => listener({ tabId: 1, host: 'shop.example.com', scheme: 'https:', storeId: tab.cookieStoreId, frameId: 0, parentFrameId: -1, ...event });
+  const emit = event => {
+    if (event.kind === 'committed' && (event.tabId ?? 1) === 1 && (event.frameId ?? 0) === 0) documentId = event.documentId ?? null;
+    listener({ tabId: 1, host: 'shop.example.com', scheme: 'https:', storeId: tab.cookieStoreId, frameId: 0, parentFrameId: -1, ...event });
+  };
   const current = () => observations.get(tab);
   async function load(documentId = 'doc-1') {
     emit({ kind: 'beforeNavigate' });
@@ -126,6 +131,56 @@ test('SITE-A09/A11: session restart retains only current metadata and permission
   await restored.invalidate();
   assert.deepEqual(f.stored, {});
   assert.equal((await restored.get(f.tab)).coverage.state, 'partial');
+});
+
+test('OBS-A10 failed write and cleanup cannot restore a previous document after background restart', async () => {
+  const f = fixture();
+  await f.load('old-document');
+  f.emit({ kind: 'request', requestType: 'script', documentId: 'old-document', host: 'old.example.net' });
+  const old = await f.current();
+  const write = f.adapter.writeSiteObservations;
+  const clear = f.adapter.clearSiteObservation;
+  f.adapter.writeSiteObservations = f.adapter.clearSiteObservation = async () => { throw new Error('session unavailable'); };
+  assert.equal((await f.load('new-document')).coverage.state, 'partial');
+  assert.equal(f.stored[1].generation, old.generation);
+  f.adapter.writeSiteObservations = write;
+  f.adapter.clearSiteObservation = clear;
+  const restarted = createObservations({ adapter: f.adapter });
+  const current = await restarted.get(f.tab);
+  assert.equal(current.coverage.state, 'partial');
+  assert.notEqual(current.generation, old.generation);
+  assert.deepEqual(current.hosts, ['shop.example.com']);
+  assert.equal(current.frames[0], undefined);
+});
+
+for (const unavailable of ['missing', 'failed', 'unknown', 'loading']) test(`OBS-A10 restoration discards ${unavailable} document identity`, async () => {
+  const f = fixture();
+  const old = await f.load();
+  if (unavailable === 'loading') f.stored[1].phase = 'loading';
+  else if (unavailable === 'missing') f.adapter.getDocumentId = async () => null;
+  else if (unavailable === 'failed') f.adapter.getDocumentId = async () => { throw new Error('tab unavailable'); };
+  else delete f.stored[1].frames[0];
+  const restarted = createObservations({ adapter: f.adapter });
+  const current = await restarted.get(f.tab);
+  assert.equal(current.coverage.state, 'partial');
+  assert.notEqual(current.generation, old.generation);
+});
+
+test('OBS-A10 navigation queued during document verification replaces the restored observation', async () => {
+  const f = fixture();
+  const old = await f.load('old-document');
+  let verify, entered;
+  const waiting = new Promise(resolve => { entered = resolve; });
+  f.adapter.getDocumentId = () => { entered(); return new Promise(resolve => { verify = resolve; }); };
+  const restarted = createObservations({ adapter: f.adapter });
+  await waiting;
+  f.emit({ kind: 'beforeNavigate' });
+  f.emit({ kind: 'committed', documentId: 'new-document' });
+  verify('old-document');
+  const current = await restarted.get(f.tab);
+  assert.notEqual(current.generation, old.generation);
+  assert.equal(current.frames[0].documentId, 'new-document');
+  assert.equal(current.coverage.state, 'observed');
 });
 
 test('SITE-A10: session read or write failure never claims observed coverage', async () => {

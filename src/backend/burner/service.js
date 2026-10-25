@@ -140,7 +140,7 @@ export function createBurner({ adapter, configuration, handles, emit }) {
     emit('operation');
   }
   async function cancelBurn({ operationId }) {
-    if (operation?.id !== operationId || !live) fail('INVALID_REQUEST', 'There is no matching active burn.');
+    if (operation?.id !== operationId || !live || !liveStates.has(operation.state)) fail('INVALID_REQUEST', 'There is no matching active burn.');
     operation.state = 'cancel_requested';
     // State changes synchronously before any storage await.
     await saveView();

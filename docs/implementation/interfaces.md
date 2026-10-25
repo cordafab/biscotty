@@ -39,6 +39,9 @@ Native adapter methods follow the PRD. `getCatalog()` returns `{ normalStoreId, 
 `readConfigurationRecord()` returns record or null; failures throw. Marker methods use opaque strings; current operation methods use plain data.
 `listCookies(storeId)` returns value-free metadata including storeId, domain, name, path, hostOnly, secure, httpOnly, session, firstPartyDomain and complete partitionKey (null if unpartitioned).
 `getActiveTab({ windowId })` returns `{ id, url, cookieStoreId, incognito }`.
+`getDocumentId(tabId)` returns the current top-level document ID through `webNavigation.getFrame({ tabId, frameId: 0 })`.
+It returns null for missing, invalid, or failed-navigation identities; native API failures throw.
+The adapter discards the returned URL and other frame metadata.
 `removeCookie(selector)` accepts Firefox details `{ url, name, storeId, firstPartyDomain, partitionKey? }`.
 
 ## Transfer service (Track D)
@@ -69,6 +72,7 @@ Cookie query `{ storeRefs?, search?, pageSize?, pageToken? }`.
 Burn preview `{ previewToken, revision, stores, eligibleAttempts, ruleProtected, ambiguous, skippedStores, scope, warning }`.
 Operation `{ id, state, plannedAttempts, attemptedCalls, removedCalls, notFoundCalls, errors, unattemptedCalls, safetySkips, reason }`.
 `startBurn` returns `{ operationId }`. `cancelBurn`/`dismissOperation` payload `{ operationId }`.
+Cancellation requires live execution in `running` or `cancel_requested`; terminal persistence cannot change the result back to an active state.
 Public labels must not show transport/native identifiers.
 
 ## Current Site domains
@@ -86,6 +90,8 @@ Navigation, permission, catalog, owner, revision, operation-lock, and complete-r
 `ready` is a promise; `get(tab)` returns the current private observation with its navigation generation and coverage.
 Observation work uses a bounded native-event queue and session storage only.
 `writeSiteObservations(records)` confirms one complete bounded aggregate snapshot; `clearSiteObservation()` removes saved state after a failed write.
+Restoration retains only committed records whose top-level document ID matches the current native document.
+Missing or failed verification discards the saved record. Queued navigation events then establish the current observation normally.
 Limits, eviction, automatic batching, and partial coverage follow [the observation PRD](../prd/10-bounded-observation.md).
 `createObservations` accepts an optional private `limits` object for controlled tests.
 `siteContext` events invalidate the displayed page context; ordinary observed-host additions send no inventory-refresh event.

@@ -1,6 +1,7 @@
 // Loaded only by the disposable native test package; never shipped.
 import { client } from '../../src/backend/client/native.js';
 import { createFirefoxAdapter } from '../../src/backend/firefox/adapter.js';
+import { createObservations } from '../../src/backend/firefox/observations.js';
 import { selectorFor, nativeSelector } from '../../src/backend/burner/selectors.js';
 import { importedText, fixturePort } from './input.js';
 const results = [];
@@ -12,7 +13,7 @@ async function check(name, task) {
 }
 const adapter = createFirefoxAdapter();
 const state = () => client.getState();
-let work, personal;
+let work, personal, verifyObservationRestoration;
 async function save(rules = [], protectedContainerRefs = []) {
   const current = await state();
   return client.saveConfiguration({ rules, protectedContainerRefs, inactiveDecisions: [] }, current.revision);
@@ -45,6 +46,57 @@ try {
     assert((await adapter.classifyHost('[::1]')).kind === 'ipv6');
     assert((await adapter.classifyHost('xn--bcher-kva.de')).baseDomain === 'xn--bcher-kva.de');
   });
+  verifyObservationRestoration = async () => {
+    let stored = {};
+    const observationAdapter = {
+      ...adapter,
+      // Production owns native listeners; isolate the restoration under test.
+      onSiteActivity() {},
+      async readSiteObservations() { return structuredClone(stored); },
+      async writeSiteObservations(value) { stored = structuredClone(value); },
+      async clearSiteObservation() { stored = {}; }
+    };
+    let observer;
+    const tab = await browser.tabs.create({ url: `http://localhost:${fixturePort}/restore-page`, active: true });
+    async function loaded(path) {
+      for (let i = 0; i < 200; i++) {
+        const current = await browser.tabs.get(tab.id);
+        if (current.status === 'complete' && current.url === `http://localhost:${fixturePort}${path}`) return;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      throw new Error('Observation fixture did not load');
+    }
+    async function observed() {
+      for (let i = 0; i < 200; i++) {
+        await client.getSiteContext({ windowId: tab.windowId });
+        const record = (await browser.storage.session.get('biscotty.siteObservations'))['biscotty.siteObservations']?.[tab.id];
+        const documentId = await adapter.getDocumentId(tab.id);
+        if (documentId && record?.frames[0]?.documentId === documentId) return record;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      throw new Error('Navigation events did not reach the test observer');
+    }
+    try {
+      await loaded('/restore-page');
+      const old = await observed();
+      assert(old.frames[0]?.documentId === await adapter.getDocumentId(tab.id), 'Native document identity does not match navigation events');
+      assert(old.hosts.includes('127.0.0.1'), 'Restore fixture did not observe its resource host');
+      stored = { [tab.id]: structuredClone(old) };
+      observer = createObservations({ adapter: observationAdapter });
+      assert((await observer.get(await browser.tabs.get(tab.id))).generation === old.generation, 'Matching restoration was discarded');
+      await browser.tabs.update(tab.id, { url: `http://localhost:${fixturePort}/restore-next` });
+      await loaded('/restore-next');
+      assert(await adapter.getDocumentId(tab.id) !== old.frames[0].documentId, 'Native document did not change');
+      assert(stored[tab.id].generation === old.generation, 'Old snapshot was not retained for the failure fixture');
+      observer = createObservations({ adapter: observationAdapter });
+      const restored = await observer.get(await browser.tabs.get(tab.id));
+      assert(restored.coverage.state === 'partial' && restored.generation !== old.generation, 'Previous document was restored as current');
+      assert(JSON.stringify(restored.hosts) === JSON.stringify(['localhost']), 'Previous document hosts survived');
+    } finally {
+      await observer?.invalidate();
+      await browser.tabs.remove(tab.id);
+    }
+  };
   await check('SITE native redirects, nested frames, domain snapshots and same-host reload invalidate popup saves', async () => {
     const topURL = `http://localhost:${fixturePort}`;
     await setCookie({ url: `${topURL}/`, name: 'observed-top', value: 'synthetic' });
@@ -257,6 +309,8 @@ await check('CFG-A10 native Settings explains legacy portable excess and permits
   assert(reduced.exportStatus.canExport);
   assert(JSON.stringify(reduced.configuration.rules) === JSON.stringify(original.rules), 'Reduction changed existing allow rules.');
 });
+// Isolated restoration runs after the production UI/navigation checks.
+await check('OBS-A10 native document identity preserves matching restoration and rejects stale storage after navigation', verifyObservationRestoration);
 await check('Portable snapshot contains selected scope and exact empty name', async () => {
   const current = await state();
   const store = current.stores.find(store => store.label === 'Native Work');

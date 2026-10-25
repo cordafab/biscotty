@@ -12,6 +12,33 @@ async function setup(options) {
   return { adapter, app, request, state };
 }
 const removes = adapter => adapter.calls.filter(call => call.type === 'remove');
+for (const boundary of ['result', 'marker']) test(`BURN-A18 cancellation during terminal ${boundary} persistence preserves a dismissible result`, async () => {
+  const s = await setup({ cookies: { 'firefox-default': [cookie()] } });
+  let release, enter;
+  const gate = new Promise(resolve => { release = resolve; });
+  const entered = new Promise(resolve => { enter = resolve; });
+  const method = boundary === 'result' ? 'writeCurrentOperation' : 'clearMarker';
+  const original = s.adapter[method];
+  s.adapter[method] = async value => {
+    if (boundary === 'marker' || value.state === 'completed') { enter(); await gate; }
+    return original(value);
+  };
+  const preview = await s.request('previewBurn');
+  const started = await s.request('startBurn', { previewToken: preview.data.previewToken });
+  await entered;
+  const pendingCancellation = s.request('cancelBurn', { operationId: started.data.operationId });
+  await new Promise(resolve => setImmediate(resolve));
+  release();
+  const cancellation = await pendingCancellation;
+  await s.app.burner.waitForIdle();
+  assert.equal(cancellation.ok, false);
+  assert.equal(cancellation.error.code, 'INVALID_REQUEST');
+  assert.equal(s.app.burner.view().state, 'completed');
+  assert.equal(s.adapter.operation.state, 'completed');
+  assert.equal(s.adapter.marker, null);
+  assert.equal((await s.request('dismissOperation', { operationId: started.data.operationId })).ok, true);
+  assert.equal((await s.state()).data.operation, null);
+});
 test('BURN-A01/A02/A03 all supported stores and partitions; protected containers skipped', async () => {
   const s = await setup({ cookies: { 'firefox-default': [cookie(), cookie({ name: 'p', partitionKey: { topLevelSite: 'https://first.test', hasCrossSiteAncestor: true }, firstPartyDomain: 'first.test', session: false })], 'firefox-container-4': [cookie()], 'firefox-container-9': [cookie()] } });
   const { record, catalogGeneration } = s.app.configuration.readConfiguration();

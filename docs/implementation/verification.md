@@ -1,15 +1,34 @@
 # Implementation verification
 
-The [publication audit correction record](publication-fixes-0.1.3.md) records the current working-tree fixes and fresh verification.
-It adds complete portable size checks, safe imported-reference choices, and observation coverage recovery.
-Its 166 automated tests and 33 native Firefox checks pass; signed release verification remains incomplete.
+The [0.1.5 correction record](publication-fixes-0.1.5.md) records the current lifecycle fixes and fresh verification.
+It adds native document verification during restoration and rejects cancellation during terminal cleanup.
+Its 175 automated tests, 30 independent audit probes, and 35 native Firefox checks pass.
+Signed release verification remains incomplete.
 
-Date: 25 October 2026. Current source version: 0.1.4.
-The [publication audit corrections](publication-fixes-0.1.3.md) describe the current patch and pre-bump native verification.
+Date: 25 October 2026. Current source version: 0.1.5.
+The [publication audit corrections](publication-fixes-0.1.3.md) preserve the earlier patch and pre-bump native verification.
 The [0.1.3 startup recovery correction](#version-013-startup-recovery-correction) records the earlier patch.
 Earlier sections preserve baseline, Current Site, and 0.1.2 publishing evidence.
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.
+
+## Version 0.1.5 lifecycle corrections
+
+OBS-17 and OBS-A10 require restoration to verify the saved top-level document against Firefox's current document.
+Matching committed records retain their generation and coverage; changed, loading, missing, and failed document lookups are discarded.
+BURN-28 and BURN-A18 require late cancellation rejection during terminal result persistence and marker cleanup.
+The controlled tests first reproduced both failures against unchanged production code.
+
+The final suite passes 175 tests with zero failures or skips.
+The independent audit probes pass 30 checks, including the original failure scenarios.
+Firefox 158.0.1 on macOS 27.0.1 arm64 passes 17 default and 18 first-party-isolated native scenarios.
+Those runs use separate disposable profiles and include reviewed cross-profile import.
+The native regression verifies actual frame document IDs and rejects an old saved snapshot after same-host navigation.
+Native observation listeners remain owned by the production background; restoration uses isolated saved-state fixtures.
+
+Version `0.1.5` packaging, ZIP integrity, source identity, and Mozilla validator 10.14.0 pass.
+The [raw evidence](audit-0.1.5/README.md) preserves command results separately from the original 0.1.4 audit.
+Signed installation, signed update, minimum-version, ESR, Windows, Linux, and complete accessibility/lifecycle acceptance remain open.
 
 ## Completed checks
 

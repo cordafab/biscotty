@@ -162,3 +162,18 @@ The user requested a patch increment, a commit, and a push of the completed audi
 PUB-D07 supersedes the delivery version in PUB-D06.
 PROD-27, PUB-01, and PUB-A01 now identify `0.1.4`.
 The request authorizes Git delivery; signing and public extension publication remain separate release-owner actions.
+
+## Version 0.1.5 delivery
+
+Decision date: 25 October 2026.
+The user requested both confirmed lifecycle fixes, a patch increment, a commit, and a push.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D08 | Deliver `0.1.5` with verified observation restoration and terminal cancellation rejection. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D08 supersedes the delivery version in PUB-D07.
+Restoration preserves matching committed documents and discards unverifiable or changed documents.
+Cancellation cannot change a terminal result during storage or marker cleanup.
+Configuration, portable file, protocol, permissions, and Firefox minimum versions remain unchanged.
+Git delivery is authorized; signed extension publication remains separate.

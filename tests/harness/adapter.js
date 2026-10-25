@@ -37,6 +37,7 @@ export function createTestAdapter(options = {}) {
     async getCatalog() { if (faults.catalog) throw new Error('catalog'); return clone(catalog); },
     async getAccess() { return clone(access); },
     async getActiveTab() { return clone(tab); },
+    async getDocumentId() { return options.documentId ?? null; },
     async classifyHost(host) {
       return { host, kind: host.startsWith('[') ? 'ipv6' : /^\d+\.\d+\.\d+\.\d+$/.test(host) ? 'ipv4' : 'dns', knownSuffix: ['com','net','co.uk','github.io'].includes(host), baseDomain: host.endsWith('.com') || host.endsWith('.net') ? host.split('.').slice(-2).join('.') : null };
     },

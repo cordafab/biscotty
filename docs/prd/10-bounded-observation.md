@@ -53,6 +53,7 @@ Public coverage remains `{ state, reason }` with existing `observed` and `partia
 - **OBS-14.** Limits MUST NOT modify allow rules, cookie counts within captured groups, or deletion authorization.
 - **OBS-15.** A fresh observed navigation MUST establish new coverage after eviction without requiring a previous record for that tab.
 - **OBS-16.** Coverage recovery MUST NOT upgrade other documents or restore invalidated navigation tokens.
+- **OBS-17.** Restoration MUST discard observations without a committed document identity matching Firefox's current top-level document.
 
 ## Failure behavior
 
@@ -75,6 +76,7 @@ Observation limits do not truncate native cookie enumeration into an apparently 
 | OBS-A07 | Storage and permission failures remove old saved claims and preserve existing cookie-protection behavior. |
 | OBS-A08 | Existing redirects, nested frames, same-host reloads, domain paging, and popup rule authorization still pass. |
 | OBS-A09 | Fresh navigation after tab or byte eviction recovers coverage; missing starts and storage failures remain partial. |
+| OBS-A10 | Restart discards stale, loading, missing, or unverifiable documents; matching committed observations retain their generation and coverage. |
 
 ## Completion evidence
 

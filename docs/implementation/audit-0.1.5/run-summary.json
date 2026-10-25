@@ -1,0 +1,65 @@
+{
+  "commands": [
+    {
+      "command": [
+        "node",
+        "--test",
+        "--test-reporter=tap"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "package"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "package": {
+    "version": "0.1.5",
+    "size": 62541,
+    "sha256": "51baec8235f7758744ad322146f166440566a8648f13c5c010332a8bb051f0f5",
+    "integrityFailure": null,
+    "sourceBytesIdentical": true,
+    "files": [
+      "assets/icon.svg",
+      "manifest.json",
+      "src/backend/background.js",
+      "src/backend/burner/selectors.js",
+      "src/backend/burner/service.js",
+      "src/backend/client/client.js",
+      "src/backend/client/native.js",
+      "src/backend/configuration/service.js",
+      "src/backend/firefox/adapter.js",
+      "src/backend/firefox/observations.js",
+      "src/backend/firefox/views.js",
+      "src/backend/gateway/application.js",
+      "src/backend/gateway/gateway.js",
+      "src/backend/gateway/handles.js",
+      "src/backend/transfer/service.js",
+      "src/core/configuration/index.js",
+      "src/core/errors.js",
+      "src/core/policy/index.js",
+      "src/core/transfer/index.js",
+      "src/frontend/dom.js",
+      "src/frontend/models.js",
+      "src/frontend/options.html",
+      "src/frontend/options.js",
+      "src/frontend/popup.html",
+      "src/frontend/popup.js",
+      "src/frontend/rule-form.js",
+      "src/frontend/styles.css"
+    ],
+    "validatorExitCode": 0
+  }
+}

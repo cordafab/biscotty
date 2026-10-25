@@ -75,6 +75,7 @@ A site target contains its canonical domain and whether subdomains are included.
 | `getCatalog` | None. | Normal store and native named-container metadata. |
 | `getAccess` | None. | Required grant state and native availability reasons. |
 | `getActiveTab` | Backend-client window context. | Native tab identifier, URL, store identifier, and private flag. |
+| `getDocumentId` | Native tab identifier. | Current top-level document identity, null when unknown, or explicit failure. |
 | `classifyHost` | Hostname. | Canonical host, host kind, known-suffix flag, and base domain or null. |
 | `listCookies` | Native store identifier. | Sanitized metadata with complete native partition identity. |
 | `removeCookie` | Complete native deletion selector. | Native success, no-match result, or failure. |
@@ -96,6 +97,8 @@ Native identifiers and observation records remain private to the backend.
 The backend serializes observation updates separately from configuration commits.
 The [observation limits](10-bounded-observation.md) control event admission, persistence batches, eviction, and restored-state validation.
 `clearSiteObservation` remains available for confirmed cleanup after snapshot failures.
+Restoration requires a committed observation whose top-level document matches `getDocumentId`.
+Unknown, failed, or changed document identity discards that saved observation.
 
 | Configuration operation | Input | Result |
 | --- | --- | --- |

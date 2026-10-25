@@ -12,6 +12,18 @@ function event() {
   };
 }
 
+test('OBS-A10 native document verification returns only the current top-level document identity', async () => {
+  const requests = [];
+  let frame = { documentId: 'current', errorOccurred: false, url: 'https://user:password@example.net/private?secret#fragment' };
+  const adapter = createFirefoxAdapter({ webNavigation: { async getFrame(details) { requests.push(details); return frame; } } });
+  assert.equal(await adapter.getDocumentId(7), 'current');
+  assert.deepEqual(requests, [{ tabId: 7, frameId: 0 }]);
+  for (const invalid of [null, {}, { documentId: '' }, { documentId: 'x'.repeat(257) }, { documentId: 'failed', errorOccurred: true }]) {
+    frame = invalid;
+    assert.equal(await adapter.getDocumentId(7), null);
+  }
+});
+
 test('SITE-01/SITE-02/SITE-11: native listeners synchronously reduce metadata without requesting headers, bodies or blocking', () => {
   const api = {
     webRequest: { onBeforeRequest: event(), onCompleted: event(), onErrorOccurred: event() },

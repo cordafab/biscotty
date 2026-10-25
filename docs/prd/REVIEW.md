@@ -218,3 +218,23 @@ The JSON example, paragraph screening, final newlines, and diff whitespace pass.
 The versioned package passes 166 automated tests, source checks, ZIP checks, and Mozilla validation.
 The 33 native checks preceded the metadata-only increment.
 Signed installation and public extension publication remain pending.
+
+## Version 0.1.5 lifecycle correction review
+
+Review date: 25 October 2026.
+Scope: Verified document restoration, terminal cancellation rejection, patch increment, and Git delivery.
+Status: Implemented; local and native regression checks passed; signed release verification remains incomplete.
+
+| Check | Result |
+| --- | --- |
+| Requirement identifiers | 322 unique definitions; earlier definitions retained. |
+| Acceptance identifiers | 125 unique definitions; OBS-A10 and BURN-A18 added. |
+| Adapter contract | `getDocumentId` supplies native identity without retaining frame URLs or changing permissions. |
+| Decisions | PUB-D08 records user authorization and supersedes the delivery version in PUB-D07. |
+| Regression evidence | 175 automated tests, 30 independent probes, and 35 native Firefox scenarios pass. |
+| Release archive | Version `0.1.5` passes packaging, ZIP integrity, source identity, and Mozilla validation. |
+| Document checks | Local links, anchors, JSON examples, changed sentence lengths, final newlines, and whitespace pass. |
+
+The [correction record](../implementation/publication-fixes-0.1.5.md) identifies the exact fixes and remaining release work.
+The original audit remains historical; corrected probe output has a separate versioned evidence directory.
+Mechanical screening does not establish exhaustive vocabulary or grammatical-role conformance.

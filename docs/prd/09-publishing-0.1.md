@@ -1,7 +1,7 @@
 # PRD: Version 0.1 publishing
 
 Status: Implemented on 25 October 2026; preparation checks passed; release verification remains incomplete.
-Delivery version: `0.1.4`.
+Delivery version: `0.1.5`.
 Owner: Integration agent.
 Paths: `manifest.json`, `package.json`, `scripts/`, `README.md`, and release documentation.
 Dependencies: [product](00-product.md), [interfaces](01-module-interfaces.md), and [release requirements](06-verification-and-release.md).
@@ -13,6 +13,7 @@ Prepare the 0.1 release line for Mozilla submission after the publication and se
 The original review covered version `0.1.1`; the initial amendment delivered version `0.1.2`.
 Version `0.1.3` adds the startup storage recovery correction.
 Version `0.1.4` adds complete portable size checks, safe imported references, and observation coverage recovery.
+Version `0.1.5` verifies restored document identities and rejects cancellation during terminal cleanup.
 
 The scope includes resource limits, accurate disclosures, release packaging, and recorded verification.
 Account access, license selection, signing, and public publication remain release-owner actions.
@@ -27,7 +28,7 @@ Mozilla validation remains an external release check, without project library de
 
 ## Requirements
 
-- **PUB-01.** The manifest and package metadata MUST identify version `0.1.4`.
+- **PUB-01.** The manifest and package metadata MUST identify version `0.1.5`.
 - **PUB-02.** Release packaging MUST produce a versioned unsigned archive and its SHA-256 file.
 - **PUB-03.** The listing MUST explain passive page observation while the popup is closed.
 - **PUB-04.** Permission explanations MUST include every declared API permission and host scope.
@@ -51,7 +52,7 @@ No failed check permits reduced protection, remote dependencies, or hidden data 
 
 | Case | Expected result |
 | --- | --- |
-| PUB-A01 | Manifest, package metadata, package filename, and active release documentation identify `0.1.4`. |
+| PUB-A01 | Manifest, package metadata, package filename, and active release documentation identify `0.1.5`. |
 | PUB-A02 | The archive contains production resources only and passes independent ZIP integrity checks. |
 | PUB-A03 | Listing and permission notes describe both observation permissions and current session metadata. |
 | PUB-A04 | Current automated tests, native checks, and Mozilla validation have separate observed results. |

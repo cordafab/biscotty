@@ -253,7 +253,13 @@ export function createObservations({ adapter, onInvalidate = () => {}, limits = 
           if (examined++ >= limits.tabs) break;
           if (!Object.hasOwn(stored, tabId) || !/^\d+$/.test(tabId)) continue;
           const record = restoreRecord(stored[tabId]);
-          if (record) retain(Number(tabId), record);
+          const documentId = record?.frames[0]?.documentId;
+          if (!documentId || record.phase !== 'committed') continue;
+          // A failed write and cleanup can leave an older document in session
+          // storage. Verify native identity before trusting its hosts or coverage.
+          try {
+            if (await adapter.getDocumentId(Number(tabId)) === documentId) retain(Number(tabId), record);
+          } catch { /* Unknown native identity cannot authorize restored state. */ }
         }
       }
       restored = true;

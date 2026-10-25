@@ -1,0 +1,230 @@
+{
+  "auditedCommit": "8468b1c",
+  "version": "0.1.4",
+  "node": "v26.12.1",
+  "freshFixtures": true,
+  "passed": 19,
+  "failed": 2,
+  "results": [
+    {
+      "name": "missing settings never initialize empty protection during ordinary startup",
+      "status": "passed",
+      "ms": 4
+    },
+    {
+      "name": "invalid settings block burning",
+      "status": "passed",
+      "ms": 1
+    },
+    {
+      "name": "persistent interruption marker blocks a new burn without resuming",
+      "status": "passed",
+      "ms": 0
+    },
+    {
+      "name": "marker write failure prevents all deletion calls",
+      "status": "passed",
+      "ms": 6
+    },
+    {
+      "name": "allow rule scope keeps Work protected while Normal remains eligible",
+      "status": "passed",
+      "ms": 6
+    },
+    {
+      "name": "closed-tab protected named container is skipped through catalog discovery",
+      "status": "passed",
+      "ms": 4
+    },
+    {
+      "name": "absent protected parent-domain cookie blocks overlapping selector",
+      "status": "passed",
+      "ms": 2
+    },
+    {
+      "name": "uncertain encoded or delimiter paths are conservatively skipped",
+      "status": "passed",
+      "ms": 1
+    },
+    {
+      "name": "deletion forwards full partition and first-party identity",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "name": "null deletion results remain not-found rather than removed",
+      "status": "passed",
+      "ms": 4
+    },
+    {
+      "name": "individual native failure permits remaining safe bounded attempts",
+      "status": "passed",
+      "ms": 5
+    },
+    {
+      "name": "cancel during an in-flight native deletion prevents subsequent calls",
+      "status": "passed",
+      "ms": 5
+    },
+    {
+      "name": "protection mutation during burn is rejected",
+      "status": "passed",
+      "ms": 4
+    },
+    {
+      "name": "permission loss between calls stops remaining deletion",
+      "status": "passed",
+      "ms": 6
+    },
+    {
+      "name": "externally changed protection stops an active burn before next call",
+      "status": "passed",
+      "ms": 5
+    },
+    {
+      "name": "catalog loss between calls stops remaining deletion",
+      "status": "passed",
+      "ms": 5
+    },
+    {
+      "name": "duplicate concurrent start request executes only one burn",
+      "status": "passed",
+      "ms": 4
+    },
+    {
+      "name": "late cancellation race raw evidence",
+      "status": "evidence",
+      "evidence": {
+        "cancellationReply": {
+          "protocolVersion": 1,
+          "requestId": "647bdcdc-f4ae-4067-a931-2cfc6c2b9b8e",
+          "ok": true,
+          "data": {
+            "cancellationRequested": true
+          }
+        },
+        "operationState": "cancel_requested",
+        "canBurn": true,
+        "marker": null,
+        "dismissReply": {
+          "protocolVersion": 1,
+          "requestId": "c1682502-6d34-40b4-8587-220b8c0b69aa",
+          "ok": false,
+          "error": {
+            "code": "OPERATION_ACTIVE",
+            "message": "An active burn cannot be dismissed."
+          }
+        }
+      }
+    },
+    {
+      "name": "late cancellation during terminal persistence preserves a terminal dismissible state",
+      "status": "failed",
+      "ms": 4,
+      "error": "AssertionError [ERR_ASSERTION]: {\"cancellationReply\":{\"protocolVersion\":1,\"requestId\":\"647bdcdc-f4ae-4067-a931-2cfc6c2b9b8e\",\"ok\":true,\"data\":{\"cancellationRequested\":true}},\"operationState\":\"cancel_requested\",\"canBurn\":true,\"marker\":null,\"dismissReply\":{\"protocolVersion\":1,\"requestId\":\"c1682502-6d34-40b4-8587-220b8c0b69aa\",\"ok\":false,\"error\":{\"code\":\"OPERATION_ACTIVE\",\"message\":\"An active burn cannot be dismissed.\"}}}"
+    },
+    {
+      "name": "observation rejects prior-document hosts and stores only reduced session data",
+      "status": "passed",
+      "ms": 1
+    },
+    {
+      "name": "observation host exhaustion is bounded and partial",
+      "status": "passed",
+      "ms": 0
+    },
+    {
+      "name": "stale session observation restoration raw evidence",
+      "status": "evidence",
+      "evidence": {
+        "before": {
+          "generation": "efe385c6-4dc0-4cb2-9033-4fe311b2a8d8",
+          "storeId": "firefox-default",
+          "host": "page.example",
+          "scheme": "https:",
+          "topLevelSite": {
+            "scheme": "https:",
+            "domain": "page.example"
+          },
+          "hosts": [
+            "page.example",
+            "old-document-resource.example"
+          ],
+          "frames": {
+            "0": {
+              "documentId": "old-page",
+              "parentFrameId": -1
+            }
+          },
+          "mainRequest": null,
+          "phase": "committed",
+          "navigationStarted": true,
+          "coverage": {
+            "state": "observed",
+            "reason": null
+          }
+        },
+        "failed": {
+          "generation": "385b84d8-f5a5-4054-a302-690ded17245d",
+          "storeId": "firefox-default",
+          "host": "page.example",
+          "scheme": "https:",
+          "topLevelSite": {
+            "scheme": "https:",
+            "domain": "page.example"
+          },
+          "hosts": [
+            "page.example",
+            "new-document-resource.example"
+          ],
+          "frames": {
+            "0": {
+              "documentId": "new-page",
+              "parentFrameId": -1
+            }
+          },
+          "mainRequest": null,
+          "phase": "committed",
+          "navigationStarted": true,
+          "coverage": {
+            "state": "partial",
+            "reason": "Page observation could not be saved. Reload after session storage is available."
+          }
+        },
+        "after": {
+          "generation": "efe385c6-4dc0-4cb2-9033-4fe311b2a8d8",
+          "storeId": "firefox-default",
+          "host": "page.example",
+          "scheme": "https:",
+          "topLevelSite": {
+            "scheme": "https:",
+            "domain": "page.example"
+          },
+          "hosts": [
+            "page.example",
+            "old-document-resource.example"
+          ],
+          "frames": {
+            "0": {
+              "documentId": "old-page",
+              "parentFrameId": -1
+            }
+          },
+          "mainRequest": null,
+          "phase": "committed",
+          "navigationStarted": true,
+          "coverage": {
+            "state": "observed",
+            "reason": null
+          }
+        }
+      }
+    },
+    {
+      "name": "failed observation write and cleanup cannot resurrect prior-document coverage after worker restart",
+      "status": "failed",
+      "ms": 1,
+      "error": "AssertionError [ERR_ASSERTION]: {\"before\":{\"generation\":\"efe385c6-4dc0-4cb2-9033-4fe311b2a8d8\",\"storeId\":\"firefox-default\",\"host\":\"page.example\",\"scheme\":\"https:\",\"topLevelSite\":{\"scheme\":\"https:\",\"domain\":\"page.example\"},\"hosts\":[\"page.example\",\"old-document-resource.example\"],\"frames\":{\"0\":{\"documentId\":\"old-page\",\"parentFrameId\":-1}},\"mainRequest\":null,\"phase\":\"committed\",\"navigationStarted\":true,\"coverage\":{\"state\":\"observed\",\"reason\":null}},\"failed\":{\"generation\":\"385b84d8-f5a5-4054-a302-690ded17245d\",\"storeId\":\"firefox-default\",\"host\":\"page.example\",\"scheme\":\"https:\",\"topLevelSite\":{\"scheme\":\"https:\",\"domain\":\"page.example\"},\"hosts\":[\"page.example\",\"new-document-resource.example\"],\"frames\":{\"0\":{\"documentId\":\"new-page\",\"parentFrameId\":-1}},\"mainRequest\":null,\"phase\":\"committed\",\"navigationStarted\":true,\"coverage\":{\"state\":\"partial\",\"reason\":\"Page observation could not be saved. Reload after session storage is available.\"}},\"after\":{\"generation\":\"efe385c6-4dc0-4cb2-9033-4fe311b2a8d8\",\"storeId\":\"firefox-default\",\"host\":\"page.example\",\"scheme\":\"https:\",\"topLevelSite\":{\"scheme\":\"https:\",\"domain\":\"page.example\"},\"hosts\":[\"page.example\",\"old-document-resource.example\"],\"frames\":{\"0\":{\"documentId\":\"old-page\",\"parentFrameId\":-1}},\"mainRequest\":null,\"phase\":\"committed\",\"navigationStarted\":true,\"coverage\":{\"state\":\"observed\",\"reason\":null}}}\n+ actual - expected\n\n+ 'observed'\n- 'partial'\n"
+    }
+  ]
+}
