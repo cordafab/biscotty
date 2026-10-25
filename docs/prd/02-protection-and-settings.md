@@ -55,6 +55,7 @@ A specific path starts with `/`; `/` is an exact path, not every path.
 Version 1 has no optional product preferences beyond this protection data.
 English, manual deletion, and required confirmation are fixed behavior.
 View filters and unsaved form state are not configuration settings.
+Page observations and domain snapshots are temporary views, not configuration settings.
 
 ## Canonical forms and validation
 
@@ -94,6 +95,7 @@ They bound parsing, messages, and local configuration size.
 | Individual name, path, or descriptive string | 4,096 Unicode code points. |
 | Canonical DNS hostname | 253 ASCII characters. |
 | Cookie metadata page | 200 rows. |
+| Domain snapshot page | 200 domain rows. |
 
 A limit violation produces a field-specific validation error before commit.
 Limits must apply to manual edits, backend messages, and imports.

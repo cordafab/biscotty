@@ -1,6 +1,7 @@
 # Shared module interfaces
 
 Status: Required contract for all implementation tracks.
+Current Site additions: Approved, implementation pending.
 Owner: Integration agent.
 Read with the [product PRD](00-product.md) and [data contract](02-protection-and-settings.md#configuration-data).
 
@@ -77,12 +78,22 @@ A site target contains its canonical domain and whether subdomains are included.
 | `classifyHost` | Hostname. | Canonical host, host kind, known-suffix flag, and base domain or null. |
 | `listCookies` | Native store identifier. | Sanitized metadata with complete native partition identity. |
 | `removeCookie` | Complete native deletion selector. | Native success, no-match result, or failure. |
+| `onSiteActivity` | Backend listener, registered synchronously. | Unsubscribe function for reduced request, navigation, and tab-lifetime events. |
+| `readSiteObservations` | None. | Current session-memory observations or an explicit read failure. |
+| `writeSiteObservation` | Native tab identifier and current observation record. | Confirmed session-memory write or failure. |
+| `clearSiteObservation` | Native tab identifier, or all observations. | Confirmed removal or failure. |
 
 Native adapter operations can return promises where Firefox access requires them.
 Track B owns their production implementations and native tests.
 Track A owns configuration reconciliation and uses those operations through injection.
 Its reconciliation assigns extension references to native catalog entries.
 Native identifiers stay private to backend implementations.
+
+Reduced activity events contain only event kind, host, scheme, store identity, and necessary tab, frame, document, and request identifiers.
+The adapter discards paths, queries, fragments, credentials, headers, and bodies before forwarding events.
+An observation record contains its navigation generation, current document ancestry, contacted hosts, top-level site, store identity, and observation coverage.
+Native identifiers and observation records remain private to the backend.
+The backend serializes observation updates separately from configuration commits.
 
 | Configuration operation | Input | Result |
 | --- | --- | --- |
@@ -124,7 +135,9 @@ Inputs below omit the common envelope fields.
 | `getState` | None. | Configuration, revision, store catalog, capabilities, and current operation view. | No. |
 | `getCookies` | Store references, search text, page size, and optional page token. | Sanitized metadata page and optional next token. | No. |
 | `getSiteContext` | Backend-client window context. | Opaque context token, site target, store, status, reasons, and permitted controls. | No. |
+| `getSiteCookieDomains` | Context token, optional page size, and optional page token. | Domain snapshot page, observation coverage, revision, store reference, and next page token. | No. |
 | `setSiteProtection` | Context token and enabled state. | New revision and effective site status. | Yes. |
+| `saveSiteRule` | Domain token, rule index or null, and complete editable rule. | Committed revision. | Yes. |
 | `saveConfiguration` | Editable rules, protected references, and inactive-reference decisions. | Committed editable configuration and new revision. | Yes. |
 | `previewBurn` | None. | Preview token, captured revision, affected stores, and estimated counts. | Yes. |
 | `startBurn` | Preview token. | Accepted operation identifier. | Yes. |
@@ -144,6 +157,86 @@ The wire action names and behavior remain the same.
 The frontend calls that method directly from its user event.
 The client must not defer the native permission request beyond the permitted gesture.
 If Firefox cannot restore access that way, return instructions for its permission interface.
+
+## Current Site action contracts
+
+These additions retain protocol version `1` and the existing configuration schema.
+They do not describe actions already supplied by the baseline implementation.
+
+### Domain snapshot pages
+
+`getSiteCookieDomains` accepts `{ contextToken, pageSize?, pageToken? }`.
+The default page size is 100 domains; the permitted range is 1 through 200.
+Without `pageToken`, the backend captures a fresh domain snapshot for the context token.
+With `pageToken`, it returns the next page of that snapshot.
+Subsequent calls retain the original context token and page size.
+
+| Result field | Contract |
+| --- | --- |
+| `domains` | Array of domain rows in ascending canonical-domain order. |
+| `storeRef` | Captured current store reference. |
+| `revision` | Configuration revision captured with the snapshot. |
+| `coverage` | `{ state, reason }`; state is `observed` or `partial`; reason is safe text or null. |
+| `nextPageToken` | Opaque continuation token, or null after the last domain. |
+
+Each row contains the following fields.
+
+| Row field | Contract |
+| --- | --- |
+| `domain` | Canonical cookie domain, using the existing domain normalization. |
+| `cookieCount` | Positive integer counting associated stored cookies in this group. |
+| `status` | `full`, `partial`, or `none`, from saved policy for this exact domain and store. |
+| `reasons` | Sanitized protection reasons, including applicable rules and whole-container protection. |
+| `matchingRuleIndexes` | Ascending indexes of all saved rules applicable to this domain and store. |
+| `domainToken` | Opaque authorization context for adding or editing a rule from this row. |
+
+Name and path restrictions remain visible on applicable rules, even when no current cookie satisfies those restrictions.
+Whole-container protection does not hide the applicable rule indexes.
+The row status describes policy coverage, independently of its cookie count.
+An empty snapshot returns an empty `domains` array and a null continuation token.
+
+`observed` means observation began with the current navigation and has no known gap within supported access.
+It does not guarantee that every browser request was observable or every listed cookie was used.
+`partial` requires a reason, including an unobserved load or lost observation state.
+The [backend PRD](03-firefox-backend-and-burner.md#current-page-cookie-domains) defines selection and lifecycle behavior.
+
+Page tokens bind to their snapshot, owner, site context, revision, catalog, and page size.
+Later activity or cookie changes do not change captured counts or page order.
+Navigation, permission, configuration, or relevant catalog changes invalidate dependent snapshot and domain tokens.
+Ordinary observation updates do not invalidate an existing snapshot.
+
+### Popup rule saves
+
+`saveSiteRule` accepts `{ domainToken, ruleIndex, rule }` with the envelope's `expectedRevision`.
+`rule` uses the existing editable allow-rule fields.
+`ruleIndex: null` adds a rule; an integer selects an index offered by the domain row.
+The backend validates the selected index against the token before constructing the candidate configuration.
+The user can edit every rule field, including domain and store scope.
+
+The backend changes only the selected rule, or appends the new rule.
+It preserves other rules, native bindings, and protected-container references.
+Existing complete-configuration validation rejects duplicate matchers and invalid scopes.
+A successful commit consumes the domain token and returns `{ revision }`.
+The frontend then requests current state, a new site context, and a fresh domain snapshot.
+
+Domain tokens bind to the owner, tab, navigation generation, store, original domain, offered rule indexes, revision, and catalog.
+The backend revalidates the active tab and navigation immediately before the queued configuration write.
+A same-host reload changes the navigation generation and invalidates the old token.
+Both a token check and an expected-revision check are required.
+
+| Failure | Required result |
+| --- | --- |
+| Invalid payload, page size, page-size change, or unoffered rule index | `INVALID_REQUEST`; no write. |
+| Missing, expired, or changed page context | `STALE_SITE_CONTEXT`; refresh before another save. |
+| Changed configuration revision | `REVISION_CONFLICT`; preserve the frontend draft for review. |
+| Missing required access | `PERMISSION_REQUIRED`; no enumeration or write. |
+| Unavailable page, cookie enumeration, or store | `CONTEXT_UNAVAILABLE`; do not return a truncated snapshot. |
+| Invalid complete candidate | `VALIDATION_FAILED`; retain field errors and the unsaved form. |
+| Active burn | `OPERATION_ACTIVE`; no protection mutation. |
+| Failed configuration write | Existing `STORAGE_FAILED` recovery behavior. |
+
+Existing sender checks, request deduplication, mutation ordering, and storage verification apply to `saveSiteRule`.
+Read-only domain snapshots remain available during a burn when cookie access remains available.
 
 ## Views and handles
 
@@ -166,6 +259,7 @@ Cookie values must be removed before view construction.
 A site view contains the captured tab, normalized host, proposed site matcher, and current store reference.
 It also contains `full`, `partial`, `none`, or `unavailable` protection status.
 It contains a context token, not an authorization to change any arbitrary tab or store.
+The context token also captures the current navigation generation.
 
 A preview contains the eligible-attempt count, rule-protected count, ambiguous count, and affected-store list.
 Protected containers can be reported as skipped stores without enumerating their cookies.
@@ -173,7 +267,7 @@ Counts must state their scope when some stores were not enumerated.
 
 A handle is opaque, single-purpose, and bound to its creator context and configuration revision.
 Mutation tokens are single-use after successful application.
-A missing or expired handle requires a fresh preview or import plan.
+A missing or expired handle requires a fresh context, snapshot, preview, or import plan for its purpose.
 
 ## Ordering and concurrency
 
@@ -185,6 +279,10 @@ A missing or expired handle requires a fresh preview or import plan.
 - **ARCH-16.** A changed configuration, permission set, or relevant store catalog MUST invalidate dependent previews and plans.
 - **ARCH-17.** A repeated `startBurn` request MUST NOT start another operation.
 - **ARCH-18.** A repeated configuration mutation MUST NOT apply twice.
+- **ARCH-19.** Domain tokens MUST bind to their captured page, store, rule choices, revision, catalog, and owner.
+- **ARCH-20.** Domain pagination MUST preserve one captured snapshot until its final page or invalidation.
+- **ARCH-21.** `saveSiteRule` MUST preserve configuration outside the explicitly selected rule change.
+- **ARCH-22.** The backend MUST revalidate the captured navigation immediately before a popup rule commit.
 
 The backend may retain request deduplication data in session memory.
 Configuration mutation replies include their committed revision.
@@ -194,6 +292,9 @@ After a lost reply, the frontend refreshes state before another mutation attempt
 
 The backend client provides a state-change subscription.
 Events identify configuration revision changes, capability changes, store changes, and current operation changes.
+They also identify active-site context invalidation without exposing contacted hosts or browsing URLs.
+New observed hosts alone do not request a frontend inventory refresh.
+
 Each event carries a monotonic session sequence number.
 After reconnecting or detecting a sequence gap, the frontend calls `getState`.
 Subscription delivery must not determine whether a burn can continue.
@@ -207,7 +308,7 @@ Subscription delivery must not determine whether a burn can continue.
 | `PERMISSION_REQUIRED` | Required website access is incomplete. |
 | `PRIVATE_UNSUPPORTED` | The context is private browsing. |
 | `CONTEXT_UNAVAILABLE` | The active page or store cannot be evaluated. |
-| `STALE_SITE_CONTEXT` | The captured tab, host, or store changed. |
+| `STALE_SITE_CONTEXT` | The captured page, navigation, store, or site token is no longer valid. |
 | `REVISION_CONFLICT` | A different configuration revision is active. |
 | `STALE_PREVIEW` | The burn preview is no longer valid. |
 | `STALE_IMPORT` | The import plan is no longer valid. |
@@ -229,3 +330,6 @@ Subscription delivery must not determine whether a burn can continue.
 - **ARCH-A06.** Closing and reopening a frontend view recovers current state without restarting the burn.
 - **ARCH-A07.** Duplicate start requests cause at most one accepted operation.
 - **ARCH-A08.** Cookie values never cross the backend response or event interface.
+- **ARCH-A09.** Domain pages retain one snapshot; later activity does not change counts, ordering, or continuation results.
+- **ARCH-A10.** Same-host navigation, expired tokens, and unoffered rule indexes cannot authorize a popup rule change.
+- **ARCH-A11.** Popup saves preserve unrelated configuration; stale revisions and active burns prevent writes; repeated requests commit at most once.

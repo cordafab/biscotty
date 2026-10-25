@@ -41,6 +41,12 @@ The following additional technical nouns have fixed meanings in this package.
 | DOM | The browser document object model. |
 | Manifest V3 | Firefox's extension manifest format, version 3. |
 | Event page | A nonpersistent Firefox background execution document. |
+| Request event | A browser notification about a network request. |
+| Navigation generation | An opaque backend identity for one top-level navigation. |
+| Document ancestry | A document's relationship to its containing documents. |
+| Schemeful site | A URL scheme and base domain, or an exact IP or local host when no base domain exists. |
+| First-party isolation | Firefox cookie separation by the originating first-party domain. |
+| Continuation token | An opaque reference to the next page within one captured snapshot. |
 | Configuration revision | A value that identifies a committed settings version. |
 | Canonical matcher | The normalized domain, subdomain option, name, and path used to identify one rule. |
 | Opaque handle | A reference whose internal contents are not interpreted by its caller. |

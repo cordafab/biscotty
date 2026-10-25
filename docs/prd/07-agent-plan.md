@@ -2,6 +2,7 @@
 
 This plan defines implementation responsibilities.
 The PRD package itself contains no extension source code.
+The baseline extension is present; the Current Site cookie-domain additions are approved, implementation pending.
 
 ## Shared preparation
 
@@ -35,7 +36,9 @@ The integration agent owns these future shared paths.
 | `manifest.json` | Firefox configuration and permissions. |
 | `src/backend/client/` | Public client and native transport. |
 | `src/backend/gateway/` | Sender checks and action registration. |
+| `src/backend/background.js` | Event-page initialization and synchronous native listener registration. |
 | `tests/harness/` | Native assertions and shared contract fixtures. |
+| `scripts/check.mjs` | Static module, privacy, and manifest permission checks. |
 | `docs/prd/` | Shared contracts and requirement corrections. |
 
 Do not start parallel source edits before M0 establishes these contracts.
@@ -76,10 +79,12 @@ Provide the policy, validation, and configuration action interfaces to the other
 
 Implement [Firefox backend and burner](03-firefox-backend-and-burner.md).
 Also supply backend `getCookies`, `getSiteContext`, and native capability support.
+Supply `getSiteCookieDomains`, `saveSiteRule`, and the page observation adapters under the amended contracts.
 Use the shared configuration and policy interfaces for quick-protection commits.
 Keep every privileged Firefox call within backend paths.
 
 Completion requires BURN-A01 through BURN-A17 and the native adapter evidence.
+Current Site completion also requires SITE-A01 through SITE-A12.
 Identify every safety case that requires a real Firefox test during integration.
 
 ## Track C assignment
@@ -89,8 +94,32 @@ Use a controlled backend client adapter while backend work is incomplete.
 Preserve saved-versus-draft state and every individual import decision.
 Provide no alternate GUI path around backend authorization or operation locks.
 
-Completion requires UI-A01 through UI-A13 against the test adapter.
+Completion requires UI-A01 through UI-A25 against the test adapter.
 Native integration cases remain required in M2.
+
+## Current Site amendment work packages
+
+Status: Approved, implementation pending.
+The following packages extend existing ownership without assigning parallel edits to shared files.
+The [module interfaces](01-module-interfaces.md#current-site-action-contracts) control the new actions and reduced observation events.
+
+| Owner | Work and dependency | Completion evidence |
+| --- | --- | --- |
+| Integration agent | Freeze new action, paging, token, event, and adapter fixtures before dependent track edits. | ARCH-A09 through ARCH-A11 mapped to controlled fixtures. |
+| Track A | Support exact-domain policy views and complete-candidate validation through existing pure interfaces and the mutation queue. | Existing rule and configuration acceptance cases remain valid. |
+| Track B | Implement request observation, navigation attribution, session retention, domain selection, and narrow popup saves. Use Track A's commit interface. | SITE-A01 through SITE-A12 and backend action tests. |
+| Track C | Build grouped rows, bounded paging, shared rule-form behavior, source selection, and immediate popup Save. Use frozen backend fixtures. | UI-A14 through UI-A25 with preserved Settings draft behavior. |
+| Integration agent | Update permissions, static permission checks, background initialization, public client methods, gateway registration, and state events. | Integrated ARCH-A09 through ARCH-A11 and required native cases. |
+
+Track B supplies reduced events before Track C relies on observation coverage.
+Track C can use controlled client fixtures while native observation is incomplete.
+Track D needs no new transfer format; XFER-03 excludes observation and snapshot metadata.
+The integration agent updates implemented-interface documentation only when the new actions actually exist.
+
+Each handoff identifies supplied contracts, acceptance evidence, and remaining Firefox-only checks.
+No package is complete merely because its future acceptance cases are documented.
+The integration agent verifies redirects, nested frames, navigation, suspension, coverage gaps, and save conflicts in Firefox.
+The release owner verifies new permission disclosures and signed-update behavior before release.
 
 ## Track D assignment
 

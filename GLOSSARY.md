@@ -57,6 +57,19 @@ _Avoid_: Local rule, global list.
 The domain recorded on a cookie.
 _Avoid_: Current site, tab URL.
 
+**Page observation**:
+The temporary collection of hosts contacted during one page's lifetime in one tab.
+_Avoid_: Browsing history, cookie-use history.
+
+**Observation coverage**:
+Whether page observation started with the page load and retained the supported request activity.
+Observed coverage does not prove that every stored cookie was used.
+_Avoid_: Complete cookie usage, transmission proof.
+
+**Domain snapshot**:
+A captured list of cookie domains and associated stored-cookie counts for one page observation and cookie store.
+_Avoid_: Live cookie list, request count.
+
 **Base domain**:
 A public suffix with the next domain label, as identified by Firefox.
 _Avoid_: Root domain, top-level domain.

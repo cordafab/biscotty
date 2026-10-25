@@ -20,6 +20,8 @@ The native cookie record includes HttpOnly, Secure, session, and partition infor
 Default enumeration excludes partitioned storage.
 An empty partition selector includes partitioned and unpartitioned cookies.
 A null first-party-domain selector includes the supported first-party contexts.
+The enumeration filters describe stored cookies, not a current tab's actual cookie usage.
+Association through contacted hosts is a project design inference.
 
 ## S03: Cookie deletion
 
@@ -124,6 +126,10 @@ The PRD adds an exact-host fallback after rejecting a bare known suffix.
 
 Session storage holds memory-only data for the browser session.
 It supports a current result without persistent operation history.
+Checked again on 25 October 2026 for the Current Site amendment.
+Session storage also permits temporary current-page observations across event-page suspension.
+Browser shutdown clears this memory-only storage.
+It provides no guarantee that storage writes will succeed or capacity will remain available.
 
 ## S15: Permission changes
 
@@ -168,3 +174,39 @@ The published rules distinguish instructions from descriptive text and permit de
 Tools do not independently prove language conformance.
 Direct retrieval of the full official PDF returned an access error during this task.
 Official indexed material and guidance supplied the language facts used here.
+
+## S20: Passive request observation
+
+Checked on 25 October 2026.
+[Mozilla webRequest API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest).
+[Mozilla onBeforeRequest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest/onBeforeRequest).
+
+Request observation requires `webRequest` and relevant host permissions.
+Observing embedded resources requires access to the requesting page and resource hosts.
+Request events provide tab, frame, request, and document context when available.
+Request bodies and blocking behavior require separate listener options.
+The Current Site design omits these options and does not request headers.
+
+The API does not retrospectively supply a page's earlier requests.
+Reserved domains and native visibility restrictions still apply.
+
+Contacted-host collection is a design choice for domain association.
+It does not prove that every stored cookie was sent or read.
+The product therefore labels observation gaps and avoids individual cookie-use claims.
+
+## S21: Navigation and document identity
+
+Checked on 25 October 2026.
+[Mozilla webNavigation API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation).
+[Mozilla onCommitted](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/onCommitted).
+[Mozilla document identity guide](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Work_with_documentId).
+[Mozilla webRequest compatibility data](https://github.com/mdn/browser-compat-data/blob/main/webextensions/api/webRequest.json).
+
+Navigation events require `webNavigation` permission.
+Committed-navigation events identify the tab, frame, document, and parent document when available.
+Document identity distinguishes loaded documents from their reusable frame identifiers.
+The checked compatibility data records `webRequest` document identity support from Firefox 153.
+The design does not depend on `documentLifecycle`, whose Firefox support is absent in that data.
+
+Navigation generations, observation replacement, redirect grouping, and incomplete restoration coverage are project design choices.
+Native tests must verify event ordering and attribution on supported Firefox releases.

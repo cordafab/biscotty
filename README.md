@@ -4,6 +4,7 @@ Biscotty is a Firefox cookie manager.
 This repository contains the native Firefox extension and approved requirements for version 1.
 Implementation uses JavaScript, HTML, CSS, and Firefox APIs with no external libraries.
 Release acceptance remains incomplete; see the [verification record](docs/implementation/verification.md).
+The Current Site cookie-domain list is approved, implementation pending; see the [frontend PRD](docs/prd/04-frontend.md#current-site-domain-list).
 
 The user approved the design on 25 October 2026.
 The requirements use ASD-STE100 Issue 9 as their writing standard.

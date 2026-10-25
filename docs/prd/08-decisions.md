@@ -45,12 +45,47 @@ This table records the latest answer for each interview question.
 | Q37 | Renames preserve settings. Deletion leaves an inactive reference without automatic same-name rebinding. | [Settings lifecycle](02-protection-and-settings.md#settings-lifecycle). |
 | Architecture | Backend owns Firefox access and execution. Frontend owns GUI. Pure logic has neither dependency. | [Module responsibilities](01-module-interfaces.md#module-responsibilities). |
 
+## Current Site amendment
+
+Decision date: 25 October 2026.
+Status: Approved, implementation pending.
+The user confirmed the complete design and requested PRD updates.
+Q38 through Q50 continue the package identifiers after the original interview.
+
+| Decision | Approved result | Main specification |
+| --- | --- | --- |
+| Q38 | Include first-party and observed third-party cookie domains in the current store. | [Product](00-product.md#current-site-cookie-domains). |
+| Q39 | Show one row per canonical cookie domain, with a stored-cookie count and pencil. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q40 | Pencils edit protection rules; cookie value editing remains excluded. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q41 | Observe page activity. Accept observation permissions, incomplete coverage, and manual reload guidance for unobserved loads. | [Backend](03-firefox-backend-and-burner.md#current-page-cookie-domains). |
+| Q42 | Open the protection-rule modal inside the popup. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q43 | Keep the existing site-protection summary and quick controls above the list. | [Toolbar](04-frontend.md#toolbar-menu). |
+| Q44 | Save protection commits immediately; Cancel or closure before Save discards the popup form. | [Popup editing](01-module-interfaces.md#popup-rule-saves). |
+| Q45 | Show applicable protection sources and let the user select an existing rule or add one. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q46 | New rules select the exact displayed domain, every name and path, and the current store. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q47 | Refresh snapshots on opening, manual Refresh, and successful Save; do not update the inventory live. | [Domain list](04-frontend.md#current-site-domain-list). |
+| Q48 | Permit full existing-rule edits, including other stores and domains, with wider scope clearly explained. | [Popup editing](01-module-interfaces.md#popup-rule-saves). |
+| Q49 | Start observation fresh for each new page, including navigation within the same website. | [Page observation](03-firefox-backend-and-burner.md#page-observation). |
+| Q50 | Counts describe associated stored cookies, not verified use. The confirmed design is ready for documentation. | [Product](00-product.md#current-site-cookie-domains). |
+
+The amendment revises NATIVE-03 and NATIVE-06 to require passive `webRequest` and `webNavigation` observation.
+The original prohibition on `webRequest` is superseded only for the agreed Current Site feature.
+Blocking requests, content scripts, automatic reloads, telemetry, and browsing history remain outside this feature.
+
+Q29 and Q34 still govern quick-protection shortcuts.
+Q48 permits deliberate full rule edits through the popup modal.
+UI-16 now states its quick-removal scope explicitly.
+UI-27 still governs cookie-row drafts in Settings.
+The popup's immediate Save workflow does not change that Settings workflow.
+Q31 continues to describe operation results; temporary page observations have the separate lifetime approved by Q49.
+
 ## Superseded proposals
 
 The final store-set model replaces separate global, Normal browsing, and single-container rule-list proposals.
 Per-conflict decisions replace the proposed automatic existing-value preference during Merge.
 No history replaces the proposed retained latest-run summary.
 These earlier proposals are not implementation requirements.
+Stored associations alone and accumulated observations across several pages were rejected for the Current Site amendment.
 
 ## Engineering contracts
 
@@ -61,3 +96,8 @@ They do not add automatic deletion, negative rules, new cloud features, or optio
 Native selector limits require conservative skips.
 The implementation must not claim atomic cookie-identity deletion that Firefox does not provide.
 See [deletion safety](03-firefox-backend-and-burner.md#deletion-safety) for the required treatment.
+
+The amendment adds bounded domain pages and context-bound rule saves without changing configuration or transfer schemas.
+The shared contract specifies `webNavigation` alongside passive `webRequest` for navigation boundaries and document attribution.
+Coverage labels describe supported observation; they do not promise unrestricted visibility into Firefox activity.
+Observed-host association is a design inference, separately identified from verified API facts in [sources](SOURCES.md).

@@ -2,6 +2,8 @@
 
 Review date: 25 October 2026.
 Scope: Requirements and agent work packages only.
+The [Current Site amendment review](#current-site-amendment-review) records the current package checks.
+Earlier results below describe the baseline package.
 
 ## Review record
 
@@ -70,9 +72,50 @@ Independent certification is not claimed.
 Date: 25 October 2026.
 The product status and agent-plan introduction now reflect the implementation.
 Product requirements and acceptance identifiers are unchanged.
-The package still defines 212 unique requirements and 66 unique acceptance cases.
+The baseline package defined 212 unique requirements and 66 unique acceptance cases.
 Local Markdown links and heading anchors passed the implementation maintenance check.
 The transfer JSON example parsed successfully.
+
 Changed text and new source files passed whitespace and final-newline checks.
 Implementation test results and pending native cases appear in the [verification record](../implementation/verification.md).
 This maintenance check does not add a language certification or release approval.
+
+## Current Site amendment review
+
+Review date: 25 October 2026.
+Feature status: Approved, implementation pending.
+Scope: Current Site requirements, shared contracts, acceptance cases, and implementation work packages.
+The earlier counts and implementation results describe the baseline, not completion of this amendment.
+
+| Check | Result |
+| --- | --- |
+| Package scope | Passed. 16 package Markdown documents checked; 14 documentation files changed for the amendment. |
+| Requirement identifiers | Passed. 268 unique definitions; all original 212 identifiers retained. |
+| Acceptance identifiers | Passed. 93 unique definitions; all original 66 identifiers retained. |
+| References and decisions | Passed. All checked requirement references resolve; decision identifiers continue through Q50. |
+| Local links | Passed. All 131 local file targets and heading anchors resolve across the package. |
+| JSON example | Passed. Transfer example fields, scope references, unique matchers, and stated protection meaning checked. |
+| Sentence screening | Passed. Descriptions and table fragments meet 25 words; numbered instructions meet 20 words. |
+| Paragraph screening | Passed. Checked prose paragraphs contain at most six sentences. |
+| Markdown and text hygiene | Passed. Heading structure, code fences, final newlines, and trailing whitespace checked. |
+| Diff whitespace | Passed. The documentation diff passes `git diff --check`. |
+| Platform sources | Request, navigation, document identity, and session-storage facts checked against primary Mozilla sources. |
+
+The review reconciled passive observation with NATIVE-03 and NATIVE-06.
+It preserved bounded inventory pages and separated snapshot stability from observation lifetime.
+It distinguished exact-domain rule editing from current-site quick-protection shortcuts.
+It checked current-store and partition selection, broader rule scope, stale navigation, duplicate matchers, and burn locking.
+
+The action contracts define context-bound paging and rule saves without a configuration or transfer schema change.
+Page observations and domain snapshots remain excluded from export and persistent settings.
+The frontend modal preserves Settings draft behavior and explains incomplete observation coverage.
+Current-page metadata is temporary; retained request history and cookie values remain prohibited.
+
+The checker uses only Python standard-library modules and read-only Git inspection.
+Sentence screening treats inline software identifiers as technical tokens and excludes headings and fenced data.
+Editorial review does not establish exhaustive ASD-STE100 vocabulary or grammatical-role conformance.
+Existing language-assurance limits remain applicable.
+
+Extension tests, packaging, native Firefox checks, and signed-update checks were not run for this documentation task.
+New acceptance cases remain future verification obligations.
+No implementation or release-completion claim is added by this review.

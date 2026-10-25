@@ -1,6 +1,7 @@
 # Product PRD: Biscotty version 1
 
-Status: Approved design; implementation present; release verification incomplete.
+Status: Approved design; baseline implementation present; release verification incomplete.
+Current Site cookie-domain list: Approved, implementation pending.
 Decision date: 25 October 2026.
 
 ## Purpose
@@ -31,8 +32,36 @@ The user can transfer protection settings between Firefox installations.
 - **PROD-18.** The extension MUST keep no operation history.
 - **PROD-19.** The extension MUST initiate no network requests and collect no telemetry.
 - **PROD-20.** GUI code MUST remain separate from Firefox access and core action execution.
+- **PROD-21.** Current Site MUST list cookie domains associated with the current page, including observed third-party domains.
+- **PROD-22.** Each domain row MUST provide a stored-cookie count and a pencil control for protection-rule editing.
+- **PROD-23.** The popup MUST preserve its existing site-protection summary above the domain list.
+- **PROD-24.** The interface MUST distinguish stored-cookie association from verified cookie transmission or use.
 
 The tool allowance does not permit third-party libraries or required dependency installation.
+
+## Current Site cookie domains
+
+Page observation identifies hosts contacted during the current page's lifetime.
+The domain snapshot contains associated stored cookies from the current store.
+It includes third-party cookies only within the applicable partition and first-party-isolation contexts.
+Its counts do not prove that each cookie was transmitted or read.
+
+Each canonical cookie domain appears once, with a count and a pencil.
+The pencil opens a protection-rule modal inside the popup.
+The user can select an applicable rule or add a rule.
+Existing rules retain their full editable scope, including other stores and domains.
+The modal explains those wider effects before Save.
+
+A new rule starts with the exact domain, every name and path, and the current store.
+Save protection commits that edit immediately.
+Cancel or popup closure before Save discards unsaved form changes.
+The Settings editor retains its separate draft and Save workflow.
+
+Opening the popup, manual Refresh, and successful Save capture a new domain snapshot.
+Bounded pages expose every row from that snapshot without live reordering.
+A new document starts a new page observation, including navigation within the same website.
+An unobserved page load produces incomplete observation coverage and reload guidance.
+The extension does not reload pages automatically.
 
 ## Protection behavior
 
@@ -82,6 +111,12 @@ The editor supports manual rules and rule creation from cookie metadata.
 Cookie values are neither displayed nor included in configuration files.
 The toolbar names the exact domain and current store before a protection change.
 The interface identifies inherited protection instead of silently changing other stores.
+
+Page observation continues while the popup is closed.
+Only temporary current-page domain metadata is retained for this feature.
+Request headers, request bodies, cookie values, and complete browsing URLs are not retained.
+The observation does not modify requests or create a browsing history.
+The [backend PRD](03-firefox-backend-and-burner.md#current-page-cookie-domains) defines its lifetime and permitted metadata.
 
 All required website permissions must be available before a burn starts.
 Missing permission blocks the burner and produces recovery instructions.

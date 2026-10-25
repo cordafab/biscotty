@@ -13,7 +13,7 @@
   "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "incognito": "not_allowed",
-  "background": { "scripts": ["src/backend/background.js"], "type": "module", "persistent": false },
+  "background": { "scripts": ["src/backend/background.js"], "type": "module" },
   "action": {
     "default_title": "Biscotty",
     "default_popup": "src/frontend/popup.html",

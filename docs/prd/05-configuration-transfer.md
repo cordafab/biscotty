@@ -25,7 +25,7 @@ The reserved reference `normal` retains its defined meaning without a container 
 
 - **XFER-01.** Export MUST include every saved allow rule and whole-container protection setting.
 - **XFER-02.** Export MUST use portable container references instead of native store identifiers or local binding references.
-- **XFER-03.** Export MUST exclude cookie values, cookie inventories, configuration revisions, tokens, and operation state.
+- **XFER-03.** Export MUST exclude cookie values, cookie inventories, page observations, domain snapshots, configuration revisions, tokens, and operation state.
 - **XFER-04.** Export MUST preserve inactive references so the user can review or map them elsewhere.
 - **XFER-05.** Import MUST accept only the declared format and supported schema version.
 - **XFER-06.** Import MUST reject unknown fields, duplicate references, invalid matchers, and undefined scope references.
