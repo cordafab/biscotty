@@ -165,3 +165,17 @@ Follow [verification and release](06-verification-and-release.md).
 Package native sources, test the signed install, and prepare Mozilla submission information.
 M3 is complete when the required evidence and release files are reviewable.
 Publishing remains the release owner's action.
+
+## Version 0.1.2 publishing work
+
+Owner: Integration agent, using the existing Track B interfaces.
+Follow [publishing](09-publishing-0.1.md), [observation limits](10-bounded-observation.md), and [request limits](11-bounded-requests.md).
+
+1. Freeze the bounded observation adapter and request-capacity contracts.
+2. Implement observation limits and mutation admission with their acceptance tests.
+3. Update the version, disclosures, reviewer instructions, and release evidence.
+4. Run native safety checks, packaging, Mozilla validation, and document checks.
+5. Identify signed, platform, and owner-only checks that remain pending.
+
+Preparation completion requires recorded evidence for the implemented amendment cases.
+M3 public release completion still requires the existing signed and release-owner gates.

@@ -33,11 +33,7 @@ export function createFirefoxAdapter(api = browser) {
     writeCurrentOperation: operation => write(api.storage.session, CURRENT, operation),
     clearCurrentOperation: () => clear(api.storage.session, CURRENT),
     readSiteObservations: async () => (await read(api.storage.session, OBSERVATIONS)) || {},
-    async writeSiteObservation(tabId, record) {
-      const records = (await read(api.storage.session, OBSERVATIONS)) || {};
-      records[tabId] = clone(record);
-      await write(api.storage.session, OBSERVATIONS, records);
-    },
+    writeSiteObservations: records => write(api.storage.session, OBSERVATIONS, records),
     async clearSiteObservation(tabId) {
       if (tabId === undefined) return clear(api.storage.session, OBSERVATIONS);
       const records = (await read(api.storage.session, OBSERVATIONS)) || {};

@@ -101,3 +101,20 @@ The amendment adds bounded domain pages and context-bound rule saves without cha
 The shared contract specifies `webNavigation` alongside passive `webRequest` for navigation boundaries and document attribution.
 Coverage labels describe supported observation; they do not promise unrestricted visibility into Firefox activity.
 Observed-host association is a design inference, separately identified from verified API facts in [sources](SOURCES.md).
+
+## Version 0.1 publishing amendment
+
+Decision date: 25 October 2026.
+The user requested new publishing PRDs, version `0.1.2`, and implementation of the review fixes.
+This authorizes implementation and release preparation, without authorizing public publication.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D01 | Deliver `0.1.2` with compatible configuration and protocol formats. | [Publishing](09-publishing-0.1.md). |
+| PUB-D02 | Bound page observation and report partial coverage after omitted activity. | [Observation](10-bounded-observation.md). |
+| PUB-D03 | Reject mutation capacity before execution and retain bounded digest-based deduplication. | [Requests](11-bounded-requests.md). |
+| PUB-D04 | Explain all permissions and passive session metadata in the release material. | [Publishing](09-publishing-0.1.md). |
+| PUB-D05 | Preserve signed verification and release-owner gates as pending until evidence exists. | [Publishing](09-publishing-0.1.md). |
+
+Earlier unbounded observation and lifetime-long response retention are superseded by these limits.
+Existing protection, transfer, and operation-history decisions remain unchanged.

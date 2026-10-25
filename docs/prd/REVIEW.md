@@ -129,3 +129,32 @@ Native toolbar geometry, accessibility, permission-loss, suspension, and signed-
 The earlier amendment review records the document status at its review time.
 Changed status lines were checked for concise sentences and consistent product terms.
 No new claim of full ASD-STE100 conformance is made.
+
+## Version 0.1.2 publishing review
+
+Review date: 25 October 2026.
+Scope: The [publishing](09-publishing-0.1.md), [observation](10-bounded-observation.md), and [request](11-bounded-requests.md) amendment and affected contracts.
+Status: Implementation and preparation checks passed; signed release verification remains incomplete.
+
+| Check | Result |
+| --- | --- |
+| Package scope | 19 package Markdown documents, including three new PRDs. |
+| Requirement identifiers | 309 unique definitions; all original 268 identifiers retained. |
+| Acceptance identifiers | 115 unique definitions; all original 93 identifiers retained. |
+| References | Requirement references resolve; generic identifier-format examples remain examples. |
+| Local links | All 180 checked package and implementation file targets and heading anchors resolve. |
+| JSON example | The portable configuration example parses; its existing semantic acceptance test passes. |
+| Sentence screening | New PRD descriptions and table fragments meet the 25-word limit. |
+| Paragraph screening | New PRD prose paragraphs contain at most six sentences. |
+| Decision trace | PUB-D01 through PUB-D05 record implementation authorization and preserved release-owner gates. |
+| Module contracts | Aggregate observation writes, resource limits, request admission, and `REQUEST_CAPACITY` are consistent across contracts. |
+| Text hygiene | Checked Markdown files have final newlines and no trailing whitespace. |
+
+The review distinguishes project resource decisions from verified Mozilla API facts.
+The 0.1.1 security report remains historical; current remediation evidence appears in the [verification record](../implementation/verification.md#version-012-publishing-preparation).
+The existing glossary meanings, configuration format, portable format, and public protocol remain unchanged.
+New computing terms appear in the technical noun register.
+
+Editorial review checked requirement scope, direct subjects, failure behavior, ordering, and acceptance evidence.
+Mechanical screening does not establish exhaustive dictionary or grammatical-role conformance.
+No independent ASD-STE100 certification or public release approval is claimed.

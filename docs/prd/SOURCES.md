@@ -210,3 +210,17 @@ The design does not depend on `documentLifecycle`, whose Firefox support is abse
 
 Navigation generations, observation replacement, redirect grouping, and incomplete restoration coverage are project design choices.
 Native tests must verify event ordering and attribution on supported Firefox releases.
+
+## S22: Publishing preparation and resource limits
+
+Checked on 25 October 2026.
+[Mozilla session storage limits](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/session).
+[Mozilla add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/).
+[Mozilla validator command](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/#web-ext-lint).
+[Mozilla submission fields](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/).
+
+Firefox documents a session storage capacity of 10 MB.
+The smaller observation budget reserves capacity for other temporary extension state.
+Observation counts, persistence intervals, cache sizes, and eviction are project decisions.
+Mozilla requires necessary permissions, reviewable code, accurate descriptions, and acceptable browser performance.
+Local validation does not replace Mozilla review or signed-install checks.

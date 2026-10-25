@@ -80,7 +80,7 @@ A site target contains its canonical domain and whether subdomains are included.
 | `removeCookie` | Complete native deletion selector. | Native success, no-match result, or failure. |
 | `onSiteActivity` | Backend listener, registered synchronously. | Unsubscribe function for reduced request, navigation, and tab-lifetime events. |
 | `readSiteObservations` | None. | Current session-memory observations or an explicit read failure. |
-| `writeSiteObservation` | Native tab identifier and current observation record. | Confirmed session-memory write or failure. |
+| `writeSiteObservations` | Complete bounded observation snapshot, keyed by native tab identifier. | Confirmed aggregate session-memory write or failure. |
 | `clearSiteObservation` | Native tab identifier, or all observations. | Confirmed removal or failure. |
 
 Native adapter operations can return promises where Firefox access requires them.
@@ -94,6 +94,8 @@ The adapter discards paths, queries, fragments, credentials, headers, and bodies
 An observation record contains its navigation generation, current document ancestry, contacted hosts, top-level site, store identity, and observation coverage.
 Native identifiers and observation records remain private to the backend.
 The backend serializes observation updates separately from configuration commits.
+The [observation limits](10-bounded-observation.md) control event admission, persistence batches, eviction, and restored-state validation.
+`clearSiteObservation` remains available for confirmed cleanup after snapshot failures.
 
 | Configuration operation | Input | Result |
 | --- | --- | --- |
@@ -284,7 +286,10 @@ A missing or expired handle requires a fresh context, snapshot, preview, or impo
 - **ARCH-21.** `saveSiteRule` MUST preserve configuration outside the explicitly selected rule change.
 - **ARCH-22.** The backend MUST revalidate the captured navigation immediately before a popup rule commit.
 
-The backend may retain request deduplication data in session memory.
+The backend retains bounded request deduplication data in process memory.
+The [request limits](11-bounded-requests.md) control admission, digests, response reservations, expiry, and eviction.
+Capacity rejection occurs before handler scheduling and returns `REQUEST_CAPACITY`.
+Completed-response eviction preserves ordinary revision and consumed-token checks on later retries.
 Configuration mutation replies include their committed revision.
 After a lost reply, the frontend refreshes state before another mutation attempt.
 
@@ -304,6 +309,7 @@ Subscription delivery must not determine whether a burn can continue.
 | Code | Meaning |
 | --- | --- |
 | `INVALID_REQUEST` | The request or protocol version is invalid. |
+| `REQUEST_CAPACITY` | Pending mutations consume available request capacity; wait before retrying. |
 | `VALIDATION_FAILED` | Configuration fields are invalid. |
 | `PERMISSION_REQUIRED` | Required website access is incomplete. |
 | `PRIVATE_UNSUPPORTED` | The context is private browsing. |

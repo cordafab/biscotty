@@ -159,6 +159,10 @@ No unmeasured fixed-duration completion promise is part of version 1.
 
 ## Release requirements
 
+Version `0.1.2` also follows the [0.1 publishing requirements](09-publishing-0.1.md).
+Preparation can finish while signed verification and public release approval remain pending.
+The original safety and acceptance gates remain required.
+
 - **REL-01.** Packaging MUST work directly from native source files without a bundler or dependency installation.
 - **REL-02.** The package MUST exclude test fixtures, development-only pages, secrets, and operation data.
 - **REL-03.** The signed package MUST include its source version and required Firefox extension identity.

@@ -29,6 +29,20 @@ function navigate(adapter, documentId = 'current-document') {
   adapter.emitSiteActivity({ ...common, kind: 'committed' });
 }
 
+test('OBS-A03/A07 public popup saves reject contexts lost through queue overload and permission loss', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [siteCookie()] } });
+  navigate(s.adapter);
+  const page = await s.capture();
+  for (let i = 0; i < 2000; i++) s.adapter.emitSiteActivity({ kind: 'request', requestType: 'image', tabId: 1, frameId: 0, documentId: 'current-document', host: `r${i}.example.net`, scheme: 'https:', storeId: 'firefox-default' });
+  const stale = await s.request('saveSiteRule', { domainToken: page.domains[0].domainToken, ruleIndex: null, rule: newRule() }, page.revision);
+  assert.equal(stale.error.code, 'STALE_SITE_CONTEXT');
+  assert.deepEqual(s.adapter.storedRecord.rules, []);
+  s.adapter.setAccess({ granted: false });
+  const denied = await s.request('getSiteContext', { windowId: 1 });
+  assert.equal(denied.data.status, 'unavailable');
+  assert.deepEqual(await s.adapter.readSiteObservations(), {});
+});
+
 test('SITE-A01/A02/A03 domain snapshot selects exact host-only and ancestor domain cookies, once each, from only the current store', async () => {
   const s = await setup({ cookies: {
     'firefox-default': [siteCookie(), cookie({ hostOnly: false }), cookie({ domain: '.EXAMPLE.COM', hostOnly: false, name: 'variant' }), cookie(), cookie({ domain: 'sibling.example.com' }), cookie({ domain: 'ample.com', hostOnly: false }), siteCookie({ path: '/private', secure: false, httpOnly: false, session: false })],

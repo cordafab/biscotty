@@ -78,6 +78,20 @@ Navigation, permission, catalog, owner, revision, operation-lock, and complete-r
 
 `createObservations({ adapter, onInvalidate })` registers reduced activity listeners synchronously and exposes `{ ready, get, invalidate }`.
 `ready` is a promise; `get(tab)` returns the current private observation with its navigation generation and coverage.
-Observation writes use a separate serialized queue and session storage only.
+Observation work uses a bounded native-event queue and session storage only.
+`writeSiteObservations(records)` confirms one complete bounded aggregate snapshot; `clearSiteObservation()` removes saved state after a failed write.
+Limits, eviction, automatic batching, and partial coverage follow [the observation PRD](../prd/10-bounded-observation.md).
+`createObservations` accepts an optional private `limits` object for controlled tests.
 `siteContext` events invalidate the displayed page context; ordinary observed-host additions send no inventory-refresh event.
 The adapter requires passive `webRequest` and `webNavigation` permissions without headers, bodies, blocking, or content scripts.
+
+## Version 0.1.2 mutation admission
+
+The gateway reserves entry and response-byte capacity before scheduling mutation handlers.
+`REQUEST_CAPACITY` means no handler was scheduled; callers can wait for pending work and retry.
+Identical in-flight requests share one execution; changed content under a retained identifier is rejected.
+Request fingerprints are SHA-256 digests, not retained payload strings.
+Completed responses expire after 15 minutes or are evicted for capacity.
+Retries after eviction still require current revisions and valid, unconsumed tokens.
+The private gateway constructor accepts `limits` and `now` for controlled tests.
+The production limits are defined in [the request PRD](../prd/11-bounded-requests.md).

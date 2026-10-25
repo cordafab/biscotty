@@ -82,6 +82,9 @@ Shared operations and payload fields belong in the [action contracts](01-module-
 
 ### Page observation
 
+Version `0.1.2` adds [observation limits](10-bounded-observation.md), aggregate persistence, and explicit partial coverage after resource loss.
+These limits refine retention without changing cookie enumeration or allow-rule meaning.
+
 - **SITE-01.** Page observation MUST use passive HTTP/HTTPS request events without requesting headers or bodies.
 - **SITE-02.** The adapter MUST register request and navigation listeners synchronously during event-page initialization.
 - **SITE-03.** Page observation MUST continue independently of popup lifetime.
