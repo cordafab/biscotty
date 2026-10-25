@@ -181,3 +181,40 @@ The correction retains the operation lock until explicit dismissal confirms mark
 Native Firefox checks were not rerun for this patch.
 Signed, platform, accessibility, and lifecycle evidence remains incomplete.
 No full ASD-STE100 conformance or public release approval is claimed.
+
+## Publication audit correction review
+
+Review date: 25 October 2026.
+Scope: Complete portable size checks, imported-reference handling, navigation coverage recovery, and affected contracts.
+Status: Implemented; local verification passed; signed release verification remains incomplete.
+
+| Check | Result |
+| --- | --- |
+| Requirement identifiers | 320 unique definitions; all 309 original definitions retained. |
+| Acceptance identifiers | 123 unique definitions; all 115 original definitions retained. |
+| Decisions | FIX-D01 through FIX-D04 record the user-approved corrections and compatibility behavior. |
+| Interfaces | `exportStatus` documented; configuration, portable file, and protocol versions remain `1`. |
+| Regression evidence | 166 automated tests and 33 native Firefox checks pass; original findings no longer reproduce through current interfaces. |
+| Release archive | Packaging, ZIP integrity, source identity, and Mozilla validation pass. |
+| Local links | All 212 checked file targets and heading anchors resolve across 26 Markdown files. |
+| JSON example | The fenced JSON example parses; its semantic acceptance test passes. |
+| Text checks | Changed PRD sentences, paragraph lengths, final newlines, and trailing whitespace pass screening. |
+
+The [correction record](../implementation/publication-fixes-0.1.3.md) identifies actual checks and remaining release work.
+Historical audit probes retain their original UI access pattern and are separate from current regression tests.
+Changed requirements retain short sentences, stable terms, explicit failure behavior, and unchanged protection semantics.
+Mechanical checks do not establish exhaustive dictionary or grammatical-role conformance.
+
+## Version 0.1.4 delivery review
+
+Review date: 25 October 2026.
+The user requested a patch increment, commit, and push of the completed corrections.
+Manifest, package metadata, active publishing requirements, and package paths identify `0.1.4`.
+PUB-D07 supersedes the earlier delivery version without changing protection behavior.
+
+All 320 requirement definitions and 123 acceptance definitions remain unique.
+All 214 checked local file targets and heading anchors resolve across 26 Markdown files.
+The JSON example, paragraph screening, final newlines, and diff whitespace pass.
+The versioned package passes 166 automated tests, source checks, ZIP checks, and Mozilla validation.
+The 33 native checks preceded the metadata-only increment.
+Signed installation and public extension publication remain pending.

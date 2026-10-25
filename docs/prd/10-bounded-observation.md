@@ -51,6 +51,8 @@ Public coverage remains `{ state, reason }` with existing `observed` and `partia
 - **OBS-12.** Failed snapshot persistence MUST remove previously saved observations or mark local coverage unavailable for restoration.
 - **OBS-13.** Observation persistence MUST remain independent of the configuration mutation queue.
 - **OBS-14.** Limits MUST NOT modify allow rules, cookie counts within captured groups, or deletion authorization.
+- **OBS-15.** A fresh observed navigation MUST establish new coverage after eviction without requiring a previous record for that tab.
+- **OBS-16.** Coverage recovery MUST NOT upgrade other documents or restore invalidated navigation tokens.
 
 ## Failure behavior
 
@@ -72,6 +74,7 @@ Observation limits do not truncate native cookie enumeration into an apparently 
 | OBS-A06 | Oversized or malformed restored records cannot produce observed coverage or unbounded retained state. |
 | OBS-A07 | Storage and permission failures remove old saved claims and preserve existing cookie-protection behavior. |
 | OBS-A08 | Existing redirects, nested frames, same-host reloads, domain paging, and popup rule authorization still pass. |
+| OBS-A09 | Fresh navigation after tab or byte eviction recovers coverage; missing starts and storage failures remain partial. |
 
 ## Completion evidence
 

@@ -1,7 +1,12 @@
 # Implementation verification
 
-Date: 25 October 2026. Current source version: 0.1.3.
-The [0.1.3 startup recovery correction](#version-013-startup-recovery-correction) records the current patch.
+The [publication audit correction record](publication-fixes-0.1.3.md) records the current working-tree fixes and fresh verification.
+It adds complete portable size checks, safe imported-reference choices, and observation coverage recovery.
+Its 166 automated tests and 33 native Firefox checks pass; signed release verification remains incomplete.
+
+Date: 25 October 2026. Current source version: 0.1.4.
+The [publication audit corrections](publication-fixes-0.1.3.md) describe the current patch and pre-bump native verification.
+The [0.1.3 startup recovery correction](#version-013-startup-recovery-correction) records the earlier patch.
 Earlier sections preserve baseline, Current Site, and 0.1.2 publishing evidence.
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.

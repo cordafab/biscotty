@@ -51,7 +51,7 @@ function render() {
   $('save').disabled = busy || !model.canEdit || !model.dirty || model.saving;
   $('cancel').disabled = busy || !model.dirty;
   $('add-rule').disabled = busy || !model.canEdit;
-  $('export').disabled = busy || !state.configuration;
+  $('export').disabled = busy || !state.configuration || state.exportStatus?.canExport === false;
   $('start-import').disabled = busy || model.locked || (!model.canEdit && !state.capabilities.canRecoverConfiguration);
   $('load-cookies').disabled = busy || !state.capabilities.canReadCookies;
   $('next-cookies').disabled = busy;
@@ -65,6 +65,7 @@ function renderAvailability() {
   if (model.locked) items.push(notice(`${operationTitle(state.operation)}. Protection changes and import application are paused.`));
   if (state.configurationStatus !== 'valid') items.push(notice(state.capabilities.canRecoverConfiguration ? 'Saved protection is missing or invalid. Burning and editing are blocked. Use Replace import to recover from a valid configuration file.' : 'Saved configuration is unavailable. Restore storage access and refresh before continuing.', 'error'));
   if (state.capabilities.reason) items.push(el('p', {}, state.capabilities.reason));
+  if (state.exportStatus?.canExport === false) items.push(notice(`Saved protection needs ${state.exportStatus.bytes.toLocaleString()} bytes to export; the limit is 2 MiB. Reduce rules, remove unused inactive references, or shorten container names in Firefox. Saved protection remains active.`));
   if (!items.length) items.push(el('p', {}, 'Saved configuration is available.'), el('small', {}, 'Burns cover accessible HTTP and HTTPS cookies. Firefox restrictions still apply.'));
   if (model.stale) items.push(notice('A different saved revision is active. Save will require you to review the current settings.'));
   replace($('availability'), items);
@@ -230,21 +231,19 @@ function renderImport() {
     const sourceContainers = importer.inspection.containers || [];
     for (const container of sourceContainers.slice(importer.mappingPage * 20, (importer.mappingPage + 1) * 20)) {
       const select = el('select', { id: `mapping-${container.ref}`, required: true, disabled: busy || model.locked, 'aria-label': `Mapping for imported ${container.name}` }, el('option', { value: '' }, 'Choose explicitly…'), (model.state.stores || []).filter(store => store.kind === 'container' && store.availability === 'available').map(store => el('option', { value: `map:${store.ref}` }, `Map to ${storeOptionLabel(store)}`)), el('option', { value: 'retain' }, 'Retain as an inactive reference'), el('option', { value: 'exclude' }, 'Exclude this source reference'));
-      select.value = importer.mappingChoices[container.ref] || '';
-      select.addEventListener('change', () => { importer.mappingChoices[container.ref] = select.value; });
+      select.value = importer.mappingChoices.get(container.ref) || '';
+      select.addEventListener('change', () => { importer.mappingChoices.set(container.ref, select.value); });
       selectors.push({ container, select });
       content.push(field(`${container.name} · ${container.state === 'inactive' ? 'inactive in source' : 'active in source'} · ${container.color} · ${container.icon}`, select));
     }
     if (!sourceContainers.length) content.push(el('p', {}, 'This file has no named-container references. Normal browsing retains its defined meaning.'));
     if (sourceContainers.length > 20) content.push(el('div', { className: 'actions' }, el('small', {}, `Source containers: page ${importer.mappingPage + 1} of ${Math.ceil(sourceContainers.length / 20)}`), button('Previous containers', () => { importer.mappingPage--; renderImport(); }, { disabled: importer.mappingPage === 0 || busy }), button('Next containers', () => { importer.mappingPage++; renderImport(); }, { disabled: (importer.mappingPage + 1) * 20 >= sourceContainers.length || busy })));
-    content.push(el('p', {}, `${Object.values(importer.mappingChoices).filter(Boolean).length} of ${sourceContainers.length} mapping decisions selected.`));
+    content.push(el('p', {}, `${[...importer.mappingChoices.values()].filter(Boolean).length} of ${sourceContainers.length} mapping decisions selected.`));
     content.push(notice('Mapping is explicit even when names match. All stores rules continue to include every available store after exclusions.'));
     const many = checkbox('I confirm any many-to-one destination mappings and want to review their combined effects.', importer.manyToOne);
     many.input.addEventListener('change', () => { importer.manyToOne = many.input.checked; });
     content.push(many.node, el('div', { className: 'actions' }, button('Build import plan', () => act(async () => {
-      if (sourceContainers.some(container => !importer.mappingChoices[container.ref])) throw new Error('Choose a mapping decision for every source container, including other pages.');
-      const mappings = sourceContainers.map(container => { const choice = importer.mappingChoices[container.ref]; return { sourceRef: container.ref, action: choice.startsWith('map:') ? 'map' : choice, ...(choice.startsWith('map:') ? { targetRef: choice.slice(4) } : {}) }; });
-      await importer.planMappings(mappings, many.input.checked);
+      await importer.planMappings(importer.mappingDecisions(), many.input.checked);
     }), { disabled: busy || model.locked }), button('Cancel import', cancel)));
   } else if (!importer.plan.canCommit) {
     const plan = importer.plan;

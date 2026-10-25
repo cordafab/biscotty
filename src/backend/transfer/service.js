@@ -94,7 +94,10 @@ export function createTransfer({ adapter, configuration, handles, isLocked = () 
       const base = createImportPlan({ source: stage.source, existing: stage.existing, mode: payload.mode, mappings: payload.mappings, retainedRefs });
       base.recovery = stage.recovery;
       const plan = resolveImportPlan(base);
-      if (plan.unresolvedConflicts.length === 0) plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+      if (plan.unresolvedConflicts.length === 0) {
+        plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+        serializePortable(plan.candidate);
+      }
       await checkStage(stage, payload, request);
       requireImportHandle(payload.importHandle, request.owner, stage);
       requirePlanGeneration(stage, generation);
@@ -109,7 +112,10 @@ export function createTransfer({ adapter, configuration, handles, isLocked = () 
       requireActivePlan(payload.planToken, request.owner, stored);
       const plan = resolveImportPlan(stored.plan, payload.decisions || [], payload.acknowledgments || {});
       // Validate the actual resolved result before presenting it as committable.
-      if (plan.unresolvedConflicts.length === 0) plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+      if (plan.unresolvedConflicts.length === 0) {
+        plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+        serializePortable(plan.candidate);
+      }
       await checkStage(stored.stage, payload, request);
       requireActivePlan(payload.planToken, request.owner, stored);
       handles.remove(payload.planToken);

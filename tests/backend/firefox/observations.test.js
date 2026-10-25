@@ -26,6 +26,52 @@ function fixture(limits) {
   return { adapter, observations, tab, emit, current, load, invalidations, get stored() { return stored; }, get writes() { return writes; } };
 }
 
+for (const limits of [{ ...OBSERVATION_LIMITS, tabs: 1 }, { ...OBSERVATION_LIMITS, bytes: 600 }]) test(`OBS-A09 fresh navigation after eviction recovers only its own coverage (${limits.tabs === 1 ? 'tabs' : 'bytes'})`, async () => {
+  const f = fixture(limits);
+  const first = await f.load('old');
+  f.emit({ kind: 'beforeNavigate', tabId: 2 });
+  f.emit({ kind: 'committed', tabId: 2, documentId: 'other' });
+  await f.observations.get({ ...f.tab, id: 2 });
+  assert.equal(f.stored[1], undefined);
+  f.emit({ kind: 'committed', documentId: 'start-was-missed' });
+  assert.equal((await f.current()).coverage.state, 'partial');
+  const newDocument = await f.load('new');
+  assert.equal(newDocument.coverage.state, 'observed');
+  assert.notEqual(newDocument.generation, first.generation);
+  assert.deepEqual(newDocument.hosts, ['shop.example.com']);
+  f.emit({ kind: 'closed' });
+  f.emit({ kind: 'beforeNavigate' });
+  f.emit({ kind: 'committed', documentId: 'after-closure' });
+  assert.equal((await f.current()).coverage.state, 'observed');
+});
+
+test('OBS-A09 the first fresh navigation after eviction recovers without an intervening popup read', async () => {
+  const f = fixture({ ...OBSERVATION_LIMITS, tabs: 1 });
+  await f.load();
+  f.emit({ kind: 'beforeNavigate', tabId: 2 });
+  f.emit({ kind: 'committed', tabId: 2, documentId: 'other' });
+  await f.observations.get({ ...f.tab, id: 2 });
+  f.emit({ kind: 'beforeNavigate' });
+  f.emit({ kind: 'committed', documentId: 'fresh-after-eviction' });
+  assert.equal((await f.current()).coverage.state, 'observed');
+});
+
+test('OBS-A09 fresh coverage recovery never upgrades another tab or masks a failed storage write', async () => {
+  const f = fixture({ ...OBSERVATION_LIMITS, tabs: 2 });
+  await f.load();
+  await f.observations.get({ ...f.tab, id: 2 });
+  f.emit({ kind: 'beforeNavigate', tabId: 3 });
+  f.emit({ kind: 'committed', tabId: 3, documentId: 'third' });
+  await f.observations.get({ ...f.tab, id: 3 });
+  assert.equal(f.stored[1], undefined);
+  f.emit({ kind: 'committed', tabId: 2, documentId: 'missing-start' });
+  assert.equal((await f.observations.get({ ...f.tab, id: 2 })).coverage.state, 'partial');
+  assert.equal((await f.load('fresh')).coverage.state, 'observed');
+  assert.equal(f.stored[2].coverage.state, 'partial');
+  f.adapter.writeSiteObservations = async () => { throw new Error('session unavailable'); };
+  assert.equal((await f.load('storage-failed')).coverage.state, 'partial');
+});
+
 test('SITE-A05: redirects, nested frames and later requests retain current ancestry', async () => {
   const f = fixture();
   f.emit({ kind: 'beforeNavigate', host: 'login.example.com' });

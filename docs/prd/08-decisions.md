@@ -132,3 +132,33 @@ PUB-D06 supersedes the delivery version in PUB-D01.
 PROD-27, PUB-01, and PUB-A01 now identify `0.1.3`.
 The earlier `0.1.2` evidence remains historical.
 Signing and public publication remain release-owner actions.
+
+## Publication audit corrections
+
+Decision date: 25 October 2026.
+The user approved implementation of the proposed corrections for F1, F2, and F3.
+This authorization covers code, regression tests, and affected requirements.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| FIX-D01 | Compact exports and complete-candidate byte checks enforce the existing 2 MiB portable limit. | [Protection](02-protection-and-settings.md), [Transfer](05-configuration-transfer.md). |
+| FIX-D02 | Existing protection and native container reconciliation remain usable when portable size exceeds the limit. | [Protection](02-protection-and-settings.md). |
+| FIX-D03 | Imported references use explicit mapping decisions without inherited-object interpretation. | [Frontend](04-frontend.md), [Transfer](05-configuration-transfer.md). |
+| FIX-D04 | Fresh observed navigation recovers coverage after eviction without upgrading other documents. | [Observation](10-bounded-observation.md). |
+
+FIX-D01 adds a complete-export check to the earlier editable-data and import-text limits.
+Configuration, portable file, and protocol versions remain `1`.
+The initial correction approval did not request a version increment, commit, signing, or public publication.
+
+## Version 0.1.4 delivery
+
+Decision date: 25 October 2026.
+The user requested a patch increment, a commit, and a push of the completed audit corrections.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D07 | Deliver `0.1.4` with the publication audit corrections and regression evidence. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D07 supersedes the delivery version in PUB-D06.
+PROD-27, PUB-01, and PUB-A01 now identify `0.1.4`.
+The request authorizes Git delivery; signing and public extension publication remain separate release-owner actions.

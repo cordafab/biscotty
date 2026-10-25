@@ -176,10 +176,21 @@ export function createPopupModel(client, changed = () => {}) {
 export function createImportModel(client, editor, changed = () => {}) {
   let generation = 0;
   const model = {
-    text: '', mode: 'merge', pending: null, applying: false, inspection: null, plan: null, decisions: [], acknowledgments: {}, mappingChoices: {}, conflictChoices: {}, ackChoices: {}, manyToOne: false, mappingPage: 0, conflictPage: 0, revision: null, recoveryToken: null,
+    text: '', mode: 'merge', pending: null, applying: false, inspection: null, plan: null, decisions: [], acknowledgments: {}, mappingChoices: new Map(), conflictChoices: {}, ackChoices: {}, manyToOne: false, mappingPage: 0, conflictPage: 0, revision: null, recoveryToken: null,
     reset() {
       generation++; model.pending = null;
-      model.text = ''; model.inspection = null; model.plan = null; model.decisions = []; model.acknowledgments = {}; model.mappingChoices = {}; model.conflictChoices = {}; model.ackChoices = {}; model.manyToOne = false; model.mappingPage = 0; model.conflictPage = 0; changed();
+      model.text = ''; model.inspection = null; model.plan = null; model.decisions = []; model.acknowledgments = {}; model.mappingChoices = new Map(); model.conflictChoices = {}; model.ackChoices = {}; model.manyToOne = false; model.mappingPage = 0; model.conflictPage = 0; changed();
+    },
+    mappingDecisions() {
+      return (model.inspection?.containers || []).map(container => {
+        const choice = model.mappingChoices.get(container.ref);
+        if (choice === 'retain' || choice === 'exclude') return { sourceRef: container.ref, action: choice };
+        if (typeof choice === 'string' && choice.startsWith('map:')) {
+          const targetRef = choice.slice(4);
+          if (editor.state.stores.some(store => store.ref === targetRef && store.kind === 'container' && store.availability === 'available')) return { sourceRef: container.ref, action: 'map', targetRef };
+        }
+        throw new Error('Choose a valid mapping decision for every source container, including other pages.');
+      });
     },
     async inspect(text, mode = 'merge') {
       model.reset();

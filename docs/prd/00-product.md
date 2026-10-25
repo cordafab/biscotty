@@ -9,6 +9,8 @@ Decision date: 25 October 2026.
 Biscotty gives a Firefox user one manual action to delete eligible cookies.
 The user can protect individual cookie groups and complete containers.
 The user can transfer protection settings between Firefox installations.
+User commits must fit the complete portable export within the shared 2 MiB limit.
+Existing protection remains usable when native container metadata causes portable size excess.
 
 ## Product requirements
 
@@ -38,7 +40,7 @@ The user can transfer protection settings between Firefox installations.
 - **PROD-24.** The interface MUST distinguish stored-cookie association from verified cookie transmission or use.
 - **PROD-25.** Page observation MUST enforce the [resource limits](10-bounded-observation.md) and identify incomplete coverage.
 - **PROD-26.** Mutation admission MUST enforce the [request limits](11-bounded-requests.md) before execution.
-- **PROD-27.** Version `0.1.3` publishing preparation MUST satisfy the [0.1 publishing requirements](09-publishing-0.1.md).
+- **PROD-27.** Version `0.1.4` publishing preparation MUST satisfy the [0.1 publishing requirements](09-publishing-0.1.md).
 
 The tool allowance does not permit third-party libraries or required dependency installation.
 

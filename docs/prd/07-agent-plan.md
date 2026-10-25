@@ -182,4 +182,5 @@ M3 public release completion still requires the existing signed and release-owne
 
 Version `0.1.3` adds startup storage recovery under the existing Track B ownership.
 The integration agent updates metadata and release evidence for the patch.
-The [publishing requirements](09-publishing-0.1.md) now identify `0.1.3`; earlier `0.1.2` evidence remains historical.
+The [publishing requirements](09-publishing-0.1.md) now identify `0.1.4`; earlier preparation evidence remains historical.
+Version `0.1.4` delivers the publication audit corrections with their focused regression tests.

@@ -40,6 +40,40 @@ function fixture() {
   });
   return { client, state, calls, handlers, event: async (reason) => { event?.({ type: 'stateChanged', sequence: ++sequence, reason }); await new Promise(resolve => setTimeout(resolve, 0)); } };
 }
+
+test('XFER-A17 prototype-related mapping references retain every choice across pages and reset', async () => {
+  const f = fixture();
+  const editor = createEditorModel(f.client); await editor.refresh();
+  const importer = createImportModel(f.client, editor);
+  const refs = ['__proto__', 'constructor', 'toString', ...Array.from({ length: 22 }, (_, index) => `source-${index}`)];
+  f.handlers.inspectImport = () => ({ importHandle: 'inspection', containers: refs.map(ref => ({ ref, name: ref })) });
+  await importer.inspect('{}');
+  const choices = ['retain', 'exclude', 'map:work'];
+  for (let offset = 0; offset < choices.length; offset++) {
+    refs.forEach((ref, index) => importer.mappingChoices.set(ref, choices[(index + offset) % choices.length]));
+    importer.mappingPage = 1;
+    const mappings = importer.mappingDecisions();
+    assert.deepEqual(mappings, refs.map((sourceRef, index) => ({ sourceRef, action: ['retain', 'exclude', 'map'][(index + offset) % 3], ...((index + offset) % 3 === 2 ? { targetRef: 'work' } : {}) })));
+    await importer.planMappings(mappings);
+    assert.deepEqual(f.calls.filter(call => call.action === 'planImport').at(-1).payload.mappings, mappings);
+  }
+  await importer.inspect('{}', 'replace');
+  assert.equal(importer.mappingChoices.size, 0);
+  assert.equal(importer.mappingPage, 0);
+  assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+});
+
+test('XFER-A17 mapping decisions reject unknown actions, nonstrings, and unavailable destinations', async () => {
+  const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
+  const importer = createImportModel(f.client, editor); await importer.inspect('{}');
+  for (const invalid of [undefined, {}, 1, '', 'unknown', 'map:normal', 'map:missing']) {
+    importer.mappingChoices.set('source', invalid);
+    assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+  }
+  importer.mappingChoices.set('source', 'map:work');
+  editor.state.stores.find(store => store.ref === 'work').availability = 'inactive';
+  assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+});
 test('UI-A09 draft changes do not call the backend; Cancel requires discard decision; Save commits once', async () => {
   const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
   editor.edit(draft => draft.rules[0].domain = 'changed.example');

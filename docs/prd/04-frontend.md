@@ -231,8 +231,13 @@ Replace requires an explicit acknowledgment of replaced settings.
 | UI-A23 | Revision errors preserve drafts; changed navigation clears rows and requires target review; an active burn blocks Save. |
 | UI-A24 | Keyboard, screen-reader, zoom, contrast, and long-domain checks cover pencils, paging, modal fields, and error states. |
 | UI-A25 | Loading, empty, unavailable, and failed states remain distinguishable; stored-cookie counts never claim verified cookie use. |
+| UI-A26 | Portable size excess explains the limit and permits editing valid saved protection before a fitting reduction. |
+| UI-A27 | Prototype-related imported references retain explicit choices across mapping pages and reset when the import is restarted. |
 
 ## Current Site completion evidence
+
+- **UI-62.** Settings MUST explain portable size excess while retaining editing access to otherwise valid protection.
+- **UI-63.** Import mapping choices MUST treat portable references as data without interpreting inherited object properties.
 
 Track C supplies UI-A14 through UI-A25 through the public backend client.
 Fixtures cover partial observation coverage, multiple rules, broader scopes, container protection, and stale page contexts.

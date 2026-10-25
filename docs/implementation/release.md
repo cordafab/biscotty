@@ -1,8 +1,9 @@
 # Release preparation
 
-Version: 0.1.3. Status: unsigned development package; release acceptance remains incomplete.
+Version: 0.1.4. Status: unsigned development package; release acceptance remains incomplete.
 
 This patch fixes startup storage recovery. Dismissal unlocks the burner only after marker and session cleanup succeed.
+Version 0.1.4 includes the [publication audit corrections](publication-fixes-0.1.3.md) for export size, import mapping, and observation recovery.
 
 ## Package native sources
 
@@ -14,7 +15,7 @@ npm run check
 npm run package
 ```
 
-The package is `dist/biscotty-0.1.3.zip`. A SHA-256 file is written beside it.
+The package is `dist/biscotty-0.1.4.zip`. A SHA-256 file is written beside it.
 Packaging uses Node.js standard modules and fixed ZIP timestamps. Repeated builds of unchanged source produce identical archives.
 Only `manifest.json`, production `src/` files, and packaged `assets/` are included.
 Tests, disposable profile files, documentation, development scripts, and operation data are excluded.

@@ -89,7 +89,7 @@ They bound parsing, messages, and local configuration size.
 
 | Item | Maximum |
 | --- | --- |
-| Import text or serialized editable configuration | 2 MiB of UTF-8 data. |
+| Import text, serialized editable configuration, or complete portable export for a user commit | 2 MiB of UTF-8 data. |
 | Allow rules | 10,000. |
 | Container bindings or portable container descriptions | 1,000. |
 | Individual name, path, or descriptive string | 4,096 Unicode code points. |
@@ -100,6 +100,16 @@ They bound parsing, messages, and local configuration size.
 A limit violation produces a field-specific validation error before commit.
 Limits must apply to manual edits, backend messages, and imports.
 Limits do not authorize partial imports or truncated settings.
+
+- **CFG-21.** Each user commit MUST fit the complete portable export within 2 MiB, including container descriptions and the final newline.
+- **CFG-22.** Size rejection MUST preserve saved protection and the current configuration revision.
+- **CFG-23.** Existing valid protection MUST remain editable when its portable export exceeds the limit.
+- **CFG-24.** Native container reconciliation MUST preserve protection and report any resulting portable size excess.
+
+Existing records can exceed the portable limit through earlier versions or native container changes.
+Their validity does not depend on the new user-commit limit.
+Users can reduce rules, remove inactive references, or shorten native container names before committing and exporting.
+The backend exposes portable size through the [shared state contract](01-module-interfaces.md#public-actions).
 
 ## Rule matching
 
@@ -170,5 +180,7 @@ Recovery must never create empty protection as an automatic error response.
 | CFG-A06 | Maximum-size valid input succeeds; each limit violation fails without a settings change. |
 | CFG-A07 | An update retains existing protection and does not run first-install initialization again. |
 | CFG-A08 | Invalid or missing settings require confirmed valid replacement; an unreadable storage area permits no recovery write. |
+| CFG-A09 | Exact-limit portable candidates succeed; one additional UTF-8 byte fails atomically through every user-commit path. |
+| CFG-A10 | Existing or reconciled portable size excess preserves protection, reports its size, and permits a fitting reduction. |
 
 Track A also provides pure selector-safety calculations described in the [burner PRD](03-firefox-backend-and-burner.md#deletion-safety).

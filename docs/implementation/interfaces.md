@@ -11,7 +11,7 @@ Export `createConfiguration({ adapter, emit, isLocked })` from `src/backend/conf
 
 - `initialize({ firstInstall = false } = {})`: read settings and reconcile catalog; initialize empty only on confirmed install.
 - `readConfiguration()`: return `{ record, catalogGeneration, status, recoveryToken }`; `record` is null when unavailable.
-- `view()`: return `{ configuration, revision, stores, configurationStatus, recoveryToken, catalogGeneration }`.
+- `view()`: return `{ configuration, exportStatus, revision, stores, configurationStatus, recoveryToken, catalogGeneration }`.
 - `verifyConfiguration()`: asynchronously compare native storage with the confirmed record; reject changed or unavailable settings without entering the queue.
 - `assertRevision(expectedRevision, recoveryToken)`: reject unavailable or stale settings; recovery token only permits missing/invalid state.
 - `runExclusive(task)`: serialize a callback with all commits and reconciliations.
@@ -21,6 +21,8 @@ Export `createConfiguration({ adapter, emit, isLocked })` from `src/backend/conf
 
 `record.containerBindings` uses PRD fields. Public store view: `{ ref, label, name, color, icon, kind: 'normal'|'container', availability: 'available'|'inactive', state, protected }`.
 `configuration` is `{ rules, protectedContainerRefs }`. No native identifiers in views.
+`exportStatus` is null without a valid record; otherwise `{ bytes, limitBytes, canExport }` measures the complete compact portable file.
+User commits enforce that file's 2 MiB UTF-8 limit, including its newline. Reads and native catalog reconciliation preserve existing oversized protection.
 `inactiveDecisions` array entries: `{ ref, action: 'keep'|'remove'|'map', targetRef? }`.
 
 Pure exports from `src/core/configuration/index.js`: `normalizeRule(raw, facts)`, `validateConfiguration(record, facts)`, `matcherKey(rule)`, `normalizeDomain(value)`.
@@ -50,6 +52,8 @@ Acknowledgments: `{ replace: true, exclusions: true, manyToOne: true, recovery: 
 Inspect returns `{ importHandle, containers, mode }`. Plan/resolve return `{ planToken, conflicts, unresolvedConflicts, preview, canCommit }`.
 Conflict view `{ id, type, existing, imported, choices }`; preview includes actual resulting rules and protected references plus added/changed/removed/duplicates/excluded/inactive details.
 Export returns `{ filename, text }`; commit returns `{ configuration, revision }`.
+`portableExportStatus(record)` and `serializePortable(record)` share one compact portable encoder in `src/core/transfer/index.js`.
+Import plans check the complete resolved candidate before reporting it as committable. The configuration service repeats this check at commit.
 
 ## Frontend (Track C)
 
@@ -57,6 +61,8 @@ Import `client` from `../backend/client/native.js`. It offers every public actio
 `windowContext()` resolves `{ windowId }`; call it for site capture. `requestHostAccess()` runs immediately in click event.
 `getState` returns configuration view plus `{ capabilities, operation }`.
 Capabilities include `canBurn`, `canChangeProtection`, `canReadCookies`, `canRecoverConfiguration`, `reason`.
+Portable size excess is disclosed through `exportStatus`; it does not itself revoke editing or cookie protection.
+Import model mapping choices use `Map`; `mappingDecisions()` validates all source decisions before sending plain mapping data through the client.
 Site response `{ contextToken, target: { domain, includeSubdomains }, store, status, reasons, controls: { canProtect, canRemove, editorRequired } }`.
 Cookie response `{ cookies, nextPageToken }`, cookie rows carry domain/name/path/storeRef/partitionLabel/protected/reasons and flags.
 Cookie query `{ storeRefs?, search?, pageSize?, pageToken? }`.

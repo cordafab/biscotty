@@ -1,7 +1,7 @@
 import { fail, clone } from '../errors.js';
-import { normalizeDomain, validateConfiguration, matcherKey } from '../configuration/index.js';
+import { normalizeDomain, validateConfiguration, matcherKey, LIMITS } from '../configuration/index.js';
 
-export const MAX_BYTES = 2 * 1024 * 1024;
+export const MAX_BYTES = LIMITS.bytes;
 const portableKeys = ['format', 'schemaVersion', 'containers', 'protectedContainerRefs', 'rules'];
 const containerKeys = ['ref', 'name', 'color', 'icon', 'state'];
 const bytes = value => new TextEncoder().encode(value).length;
@@ -60,10 +60,18 @@ export function exportPortable(record) {
     rules: record.rules.map(rule => ({ domain: rule.domain, includeSubdomains: rule.includeSubdomains, name: rule.name, path: rule.path, scope: rule.scope.type === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: uniqueSorted(rule.scope.storeRefs.map(ref)) } }))
   };
 }
+function encodePortable(record) {
+  const text = `${JSON.stringify(exportPortable(record))}\n`;
+  return { text, bytes: bytes(text) };
+}
+export function portableExportStatus(record) {
+  const { bytes } = encodePortable(record);
+  return { bytes, limitBytes: MAX_BYTES, canExport: bytes <= MAX_BYTES };
+}
 export function serializePortable(record) {
-  const output = `${JSON.stringify(exportPortable(record), null, 2)}\n`;
-  if (bytes(output) > MAX_BYTES) fail('VALIDATION_FAILED', 'The portable configuration exceeds 2 MiB.', { field: 'configuration' });
-  return output;
+  const encoded = encodePortable(record);
+  if (encoded.bytes > MAX_BYTES) fail('VALIDATION_FAILED', 'The complete portable configuration exceeds 2 MiB. Reduce rules, remove unused inactive references, or shorten container names in Firefox.', { field: 'configuration', bytes: encoded.bytes, limitBytes: MAX_BYTES });
+  return encoded.text;
 }
 export function combineScopes(left, right) {
   return left.type === 'all' || right.type === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: uniqueSorted([...left.storeRefs, ...right.storeRefs]) };

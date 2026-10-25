@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { sizedRecord } from '../../harness/size-fixtures.js';
 import { parsePortableText, validatePortable, exportPortable, serializePortable, createImportPlan, resolveImportPlan } from '../../../src/core/transfer/index.js';
 const facts = Object.fromEntries(['example.com', 'example.net', 'other.test'].map(host => [host, { host, kind: 'dns', knownSuffix: false, baseDomain: host }]));
 const rule = (overrides = {}) => ({ domain: 'example.com', includeSubdomains: true, name: null, path: null, scope: { type: 'all' }, ...overrides });
@@ -110,4 +111,21 @@ test('CFG-A06 XFER-A09 10,000 rules validate in full; one excess rule or overlon
   assert.equal(validatePortable(source({ rules }), facts).rules.length, 10000);
   assert.throws(() => validatePortable(source({ rules: [...rules, rule({ name: 'extra' })] }), facts), { code: 'VALIDATION_FAILED' });
   assert.throws(() => validatePortable(source({ containers: [{ ...source().containers[0], name: 'x'.repeat(4097) }] }), facts), { code: 'VALIDATION_FAILED' });
+});
+
+test('XFER-A15 large supported configurations export compactly and round-trip all rules', () => {
+  const rules = Array.from({ length: 10000 }, (_, index) => rule({ name: `cookie-${index}`, scope: { type: 'selected', storeRefs: ['normal'] } }));
+  const exported = serializePortable(record({ rules }));
+  assert.ok(Buffer.byteLength(exported) <= 2 * 1024 * 1024);
+  assert.equal(exported.split('\n').length, 2);
+  assert.deepEqual(validatePortable(parsePortableText(exported), facts).rules, rules);
+});
+
+test('XFER-A15 portable UTF-8 size includes escaping, metadata, and the final newline', () => {
+  const limit = 2 * 1024 * 1024;
+  const exact = sizedRecord(limit);
+  const exported = serializePortable(exact);
+  assert.equal(Buffer.byteLength(exported), limit);
+  assert.deepEqual(validatePortable(parsePortableText(exported), facts).rules, exact.rules);
+  assert.throws(() => serializePortable(sizedRecord(limit + 1)), { code: 'VALIDATION_FAILED' });
 });

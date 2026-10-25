@@ -1,5 +1,6 @@
 import { clone, fail, opaqueId, yieldTask } from '../../core/errors.js';
 import { checkFields, checkSize, LIMITS, normalizeDomain, validateConfiguration } from '../../core/configuration/index.js';
+import { portableExportStatus, serializePortable } from '../../core/transfer/index.js';
 
 const emptyRecord = () => ({ schemaVersion: 1, revision: 0, containerBindings: [], protectedContainerRefs: [], rules: [] });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -140,7 +141,7 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
     if (record) for (const binding of record.containerBindings) stores.push({ ref: binding.ref, label: binding.name, name: binding.name, color: binding.color, icon: binding.icon, kind: 'container', state: binding.state, availability: catalog && binding.state === 'active' ? 'available' : 'inactive', protected: record.protectedContainerRefs.includes(binding.ref) });
     // Recovery still needs destination choices, but these references are reserved only for this catalog generation.
     if (!record && catalog) for (const entry of recoveryBindings) stores.push({ ref: entry.ref, label: entry.name, name: entry.name, color: entry.color, icon: entry.icon, kind: 'container', state: 'active', availability: 'available', protected: false });
-    return { configuration: record ? { rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs) } : null, revision: record?.revision ?? null, stores, configurationStatus: status, recoveryToken, catalogGeneration };
+    return { configuration: record ? { rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs) } : null, exportStatus: record ? portableExportStatus(record) : null, revision: record?.revision ?? null, stores, configurationStatus: status, recoveryToken, catalogGeneration };
   }
   async function verifyConfiguration() {
     let raw;
@@ -190,6 +191,9 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
         fail('STALE_IMPORT', 'Available containers changed. Refresh and review the settings again.');
       }
       const validated = validateConfiguration(candidate, await factsFor(candidate));
+      // User commits must remain exportable. Reads and native metadata reconciliation
+      // preserve existing protection even when a legacy record exceeds this limit.
+      serializePortable(validated);
       // Candidates cannot invent active native bindings or drop an existing active binding.
       const available = new Map(currentCatalog.containers.map(entry => [entry.cookieStoreId, entry]));
       for (const binding of validated.containerBindings) {

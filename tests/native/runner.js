@@ -213,6 +213,50 @@ await check('Native settings dialog preserves unsaved drafts and confirms Save a
   for (let i = 0; i < 100; i++) { if ((await state()).configuration.rules.some(rule => rule.domain === 'ui.example.org')) return; await new Promise(resolve => setTimeout(resolve, 10)); }
   throw new Error('Settings Save did not commit');
 });
+await check('XFER-A17 native import maps a prototype-named reference and reaches its final preview', async () => {
+  const wait = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(document.getElementById('messages').textContent || 'Import UI did not advance'); };
+  const findButton = text => [...document.querySelectorAll('button')].find(button => button.textContent === text);
+  const before = (await state()).revision;
+  document.getElementById('start-import').click();
+  const input = document.querySelector('#import-workflow input[type="file"]');
+  assert(input, 'Import file control is missing.');
+  const refs = ['__proto__', 'constructor', 'toString', ...Array.from({ length: 20 }, (_, index) => `source-${index}`)];
+  const portable = { format: 'biscotty-config', schemaVersion: 1, containers: refs.map(ref => ({ ref, name: `Imported ${ref}`, color: 'blue', icon: 'briefcase', state: 'inactive' })), protectedContainerRefs: [], rules: [] };
+  const files = new DataTransfer();
+  files.items.add(new File([JSON.stringify(portable)], 'prototype-reference.json', { type: 'application/json' }));
+  input.files = files.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  try {
+    await wait(() => document.getElementById('mapping-__proto__') && !document.getElementById('mapping-__proto__').disabled);
+    for (let page = 0; page < 2; page++) {
+      for (const select of document.querySelectorAll('#import-workflow select[id^="mapping-"]')) {
+        select.value = 'retain'; select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (page === 0) findButton('Next containers').click();
+    }
+    findButton('Build import plan').click();
+    await wait(() => findButton('Apply configuration'));
+    assert((await state()).revision === before, 'Mapping changed saved protection before Apply.');
+    findButton('Change mode or mappings').click();
+    await wait(() => document.getElementById('mapping-__proto__') && !document.getElementById('mapping-__proto__').disabled);
+    assert(document.getElementById('mapping-__proto__').value === '', 'Changing mappings did not reset the choices.');
+  } finally { findButton('Cancel import')?.click(); }
+});
+await check('CFG-A10 native Settings explains legacy portable excess and permits a fitting reduction', async () => {
+  const key = 'biscotty.configuration';
+  const original = (await browser.storage.local.get(key))[key];
+  const inactive = Array.from({ length: 520 }, (_, index) => ({ ref: `legacy-${index}`, cookieStoreId: null, name: 'x'.repeat(4096), color: 'blue', icon: 'briefcase', state: 'inactive' }));
+  await browser.storage.local.set({ [key]: { ...original, containerBindings: [...original.containerBindings, ...inactive] } });
+  const over = await state();
+  assert(over.configurationStatus === 'valid' && over.capabilities.canChangeProtection && !over.exportStatus.canExport, JSON.stringify(over.exportStatus));
+  for (let i = 0; i < 200 && !document.getElementById('availability').textContent.includes('the limit is 2 MiB'); i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert(document.getElementById('availability').textContent.includes('the limit is 2 MiB'), 'Settings did not explain the portable limit.');
+  assert(document.getElementById('export').disabled && !document.getElementById('add-rule').disabled, 'Portable excess disabled editing or allowed an oversized export.');
+  await client.saveConfiguration({ rules: original.rules, protectedContainerRefs: original.protectedContainerRefs, inactiveDecisions: inactive.map(binding => ({ ref: binding.ref, action: 'remove' })) }, over.revision);
+  const reduced = await state();
+  assert(reduced.exportStatus.canExport);
+  assert(JSON.stringify(reduced.configuration.rules) === JSON.stringify(original.rules), 'Reduction changed existing allow rules.');
+});
 await check('Portable snapshot contains selected scope and exact empty name', async () => {
   const current = await state();
   const store = current.stores.find(store => store.label === 'Native Work');

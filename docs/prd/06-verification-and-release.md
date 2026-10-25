@@ -159,7 +159,7 @@ No unmeasured fixed-duration completion promise is part of version 1.
 
 ## Release requirements
 
-Version `0.1.3` also follows the [0.1 publishing requirements](09-publishing-0.1.md).
+Version `0.1.4` also follows the [0.1 publishing requirements](09-publishing-0.1.md).
 Preparation can finish while signed verification and public release approval remain pending.
 The original safety and acceptance gates remain required.
 

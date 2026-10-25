@@ -1,0 +1,24 @@
+{
+  "selectorSafety": {
+    "checked": 164640,
+    "unsafe": 0,
+    "passed": true
+  },
+  "observationEviction": {
+    "tabsLimit": 128,
+    "initialNavigation": {
+      "state": "observed",
+      "reason": null
+    },
+    "navigationEvictingFirstTab": {
+      "state": "observed",
+      "reason": null
+    },
+    "freshNavigationAfterEviction": {
+      "state": "partial",
+      "reason": "Observation did not begin with this page load. Reload the page to observe subsequent activity."
+    },
+    "expectedFreshNavigationState": "observed",
+    "passed": false
+  }
+}

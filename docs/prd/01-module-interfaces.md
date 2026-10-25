@@ -134,7 +134,7 @@ Inputs below omit the common envelope fields.
 
 | Action | Input | Result | Revision required |
 | --- | --- | --- | --- |
-| `getState` | None. | Configuration, revision, store catalog, capabilities, and current operation view. | No. |
+| `getState` | None. | Configuration, portable export status, revision, store catalog, capabilities, and current operation view. | No. |
 | `getCookies` | Store references, search text, page size, and optional page token. | Sanitized metadata page and optional next token. | No. |
 | `getSiteContext` | Backend-client window context. | Opaque context token, site target, store, status, reasons, and permitted controls. | No. |
 | `getSiteCookieDomains` | Context token, optional page size, and optional page token. | Domain snapshot page, observation coverage, revision, store reference, and next page token. | No. |
@@ -159,6 +159,13 @@ The wire action names and behavior remain the same.
 The frontend calls that method directly from its user event.
 The client must not defer the native permission request beyond the permitted gesture.
 If Firefox cannot restore access that way, return instructions for its permission interface.
+
+### Portable export status
+
+`getState.exportStatus` is `null` when no valid configuration is available.
+Otherwise, it contains `bytes`, `limitBytes`, and `canExport` for the complete compact portable file, including its final newline.
+Size excess alone does not disable editing or invalidate saved protection.
+Every user commit must bring the complete export within `limitBytes`.
 
 ## Current Site action contracts
 

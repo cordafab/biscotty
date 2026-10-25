@@ -20,7 +20,6 @@ export function createObservations({ adapter, onInvalidate = () => {}, limits = 
   let resetPending = false;
   let epoch = 0;
   let eventSequence = 0;
-  let lostCoverage = false;
   let persistTimer = null;
   const enqueue = work => { const result = queue.then(work); queue = result.catch(() => {}); return result; };
   function changed(tabId) { onInvalidate(tabId); }
@@ -33,19 +32,18 @@ export function createObservations({ adapter, onInvalidate = () => {}, limits = 
   }
   function reset() {
     for (const tabId of [...records.keys()]) clear(tabId);
-    lostCoverage = true;
     resetPending = false;
     dirty = true;
   }
   function retain(tabId, record) {
     const bytes = size(record) + size(String(tabId)) + 2;
-    if (bytes > limits.recordBytes) { lostCoverage = true; clear(tabId); return; }
+    if (bytes > limits.recordBytes) { clear(tabId); return; }
     retainedBytes += bytes - (recordSizes.get(tabId) || 0);
     recordSizes.set(tabId, bytes);
     records.delete(tabId);
     records.set(tabId, record);
     dirty = true;
-    while (records.size > limits.tabs || retainedBytes > limits.bytes) { lostCoverage = true; clear(records.keys().next().value); }
+    while (records.size > limits.tabs || retainedBytes > limits.bytes) clear(records.keys().next().value);
   }
   function schedulePersistence() {
     if (!dirty || persistTimer !== null) return;
@@ -132,7 +130,9 @@ export function createObservations({ adapter, onInvalidate = () => {}, limits = 
       host: event.host, scheme: event.scheme,
       topLevelSite: await site(event.host, event.scheme), hosts: [event.host],
       frames: {}, mainRequest: null, phase: 'loading', navigationStarted: false,
-      coverage: observed && restored && (!lostCoverage || records.has(event.tabId)) ? { state: 'observed', reason: null } : partial(gap)
+      // A new navigation's observed start is independent of an evicted document.
+      // Missing starts and persistence failures still produce partial coverage.
+      coverage: observed && restored ? { state: 'observed', reason: null } : partial(gap)
     };
     records.set(event.tabId, record);
     changed(event.tabId);
