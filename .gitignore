@@ -1,0 +1,36 @@
+# Operating system and editor files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+/.idea/
+/*.code-workspace
+
+# Generated Firefox packages and build output
+/build/
+/dist/
+/artifacts/
+*.xpi
+/*.zip
+
+# Local Firefox test profiles and generated test results
+/.firefox-profiles/
+/firefox-profiles/
+/profiles/
+/test-results/
+/coverage/
+
+# Temporary files and local logs
+/.cache/
+/tmp/
+/temp/
+*.log
+
+# Local environment settings; keep shared examples visible
+/.env
+/.env.*
+!/.env.example
+!/.env.template
