@@ -179,3 +179,7 @@ Follow [publishing](09-publishing-0.1.md), [observation limits](10-bounded-obser
 
 Preparation completion requires recorded evidence for the implemented amendment cases.
 M3 public release completion still requires the existing signed and release-owner gates.
+
+Version `0.1.3` adds startup storage recovery under the existing Track B ownership.
+The integration agent updates metadata and release evidence for the patch.
+The [publishing requirements](09-publishing-0.1.md) now identify `0.1.3`; earlier `0.1.2` evidence remains historical.

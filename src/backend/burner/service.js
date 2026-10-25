@@ -29,7 +29,7 @@ export function createBurner({ adapter, configuration, handles, emit }) {
       }
     } catch {
       locked = true;
-      live = true;
+      live = false;
       operation = { id: opaqueId(), state: 'interrupted', plannedAttempts: null, attemptedCalls: null, removedCalls: null, notFoundCalls: null, errors: null, unattemptedCalls: null, safetySkips: null, reason: 'STORAGE_FAILED' };
     }
   }

@@ -118,3 +118,17 @@ This authorizes implementation and release preparation, without authorizing publ
 
 Earlier unbounded observation and lifetime-long response retention are superseded by these limits.
 Existing protection, transfer, and operation-history decisions remain unchanged.
+
+## Version 0.1.3 patch
+
+Decision date: 25 October 2026.
+The user requested the startup storage recovery fix, a patch increment, and a commit of the edits.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D06 | Deliver `0.1.3` with startup storage recovery and the existing cleanup checks. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D06 supersedes the delivery version in PUB-D01.
+PROD-27, PUB-01, and PUB-A01 now identify `0.1.3`.
+The earlier `0.1.2` evidence remains historical.
+Signing and public publication remain release-owner actions.

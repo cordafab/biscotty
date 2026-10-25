@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Biscotty",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Manually burn eligible cookies while protecting selected sites and containers.",
   "browser_specific_settings": {
     "gecko": {

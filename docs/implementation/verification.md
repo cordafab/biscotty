@@ -1,8 +1,8 @@
 # Implementation verification
 
-Date: 25 October 2026. Current source version: 0.1.2.
-The [0.1.2 publishing preparation](#version-012-publishing-preparation) records the current amendment.
-Earlier sections preserve baseline and Current Site evidence.
+Date: 25 October 2026. Current source version: 0.1.3.
+The [0.1.3 startup recovery correction](#version-013-startup-recovery-correction) records the current patch.
+Earlier sections preserve baseline, Current Site, and 0.1.2 publishing evidence.
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.
 
@@ -193,3 +193,30 @@ Keyboard, screen-reader, zoom, and contrast verification remain incomplete.
 The release owner must select the license, provide support information, and complete account/listing fields.
 No AMO upload, signing, or public publication was performed.
 These open gates prevent a release-complete claim under REL-08.
+
+## Version 0.1.3 startup recovery correction
+
+Date: 25 October 2026. Status: correction and local preparation checks passed; signed release verification remains incomplete.
+The patch follows the [publishing requirements](../prd/09-publishing-0.1.md) and [patch decision](../prd/08-decisions.md#version-013-patch).
+The [security review](publication-security-review-0.1.2.md#startup-recovery-correction) records the original failure and its correction.
+
+Initialization now marks failed startup as interrupted without claiming a live executor.
+Dismissal retains the operation lock until marker and session cleanup succeed.
+Three public-gateway cases cover startup marker reads, current-operation reads, and interrupted-state writes.
+They also check both cleanup failures, restored capabilities after dismissal, and zero automatic deletions.
+All three cases failed before the production correction and passed afterward.
+
+| Check | Result |
+| --- | --- |
+| `npm test` | 151 passed; zero failures, skips, or cancellations. |
+| `npm run package` | Static checks passed for 25 source files; the archive contains 27 production entries. |
+| ZIP integrity | All compressed entries and CRCs passed with `unzip -t`. |
+| Mozilla `addons-linter` 10.14.0 | Zero errors, warnings, or notices for `biscotty-0.1.3.zip`. |
+
+Environment: macOS 27.0.1 arm64, Node.js v26.12.1.
+Native Firefox checks were not rerun for this patch; earlier results remain attached to their tested versions.
+Signed, platform, accessibility, and lifecycle release gates remain pending.
+No submission, signing, or public publication occurred.
+
+Archive: `dist/biscotty-0.1.3.zip`.
+SHA-256: `8e4f16db94b3266e3cbf686d25c9abb27ed4cc1be080d98fad613a4eb6055db2`.

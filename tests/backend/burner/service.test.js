@@ -71,6 +71,42 @@ test('BURN-A10/A11 interruption, marker failures, cleanup failure prevent new ex
   const t = await setup({ cookies: { 'firefox-default': [cookie()] } }); const q = await t.request('previewBurn'); t.adapter.faults.cleanup = true;
   await t.request('startBurn', { previewToken: q.data.previewToken }); await t.app.burner.waitForIdle(); assert.equal(t.app.burner.isLocked(), true); assert.equal(t.app.burner.view().reason, 'CLEANUP_FAILED');
 });
+for (const startupMethod of ['readMarker', 'readCurrentOperation', 'writeCurrentOperation']) {
+  test(`BURN-A10/A11 startup ${startupMethod} failure permits dismissal only after confirmed cleanup`, async () => {
+    const adapter = createTestAdapter({ marker: 'old-operation', cookies: { 'firefox-default': [cookie()] } });
+    const failStorage = async () => { throw new Error('synthetic storage failure'); };
+    const original = adapter[startupMethod];
+    adapter[startupMethod] = failStorage;
+    const app = createApplication(adapter, { extensionId: sender.id, baseURL: 'moz-extension://test/' });
+    await app.ready();
+    adapter[startupMethod] = original;
+    const request = (action, payload = {}) => app.dispatch(envelope(action, payload, app.configuration.view().revision), sender);
+    const initial = (await request('getState')).data;
+    assert.equal(initial.operation.state, 'interrupted');
+    assert.equal(initial.operation.reason, 'STORAGE_FAILED');
+    assert.equal(initial.capabilities.canBurn, false);
+    assert.equal(initial.capabilities.canChangeProtection, false);
+    for (const cleanupMethod of ['clearMarker', 'clearCurrentOperation']) {
+      const cleanup = adapter[cleanupMethod];
+      adapter[cleanupMethod] = failStorage;
+      const failed = await request('dismissOperation', { operationId: initial.operation.id });
+      assert.equal(failed.error.code, 'INTERNAL_FAILURE');
+      assert.equal(app.burner.isLocked(), true);
+      assert.equal((await request('getState')).data.operation.id, initial.operation.id);
+      assert.equal((await request('previewBurn')).error.code, 'OPERATION_ACTIVE');
+      adapter[cleanupMethod] = cleanup;
+    }
+    assert.equal((await request('dismissOperation', { operationId: initial.operation.id })).ok, true);
+    const recovered = (await request('getState')).data;
+    assert.equal(recovered.operation, null);
+    assert.equal(recovered.capabilities.canBurn, true);
+    assert.equal(recovered.capabilities.canChangeProtection, true);
+    assert.equal(adapter.marker, null);
+    assert.equal(adapter.operation, null);
+    assert.equal((await request('previewBurn')).ok, true);
+    assert.equal(removes(adapter).length, 0);
+  });
+}
 test('BURN-A14 dismiss removes the single current result; no local history', async () => {
   const s = await setup({ cookies: { 'firefox-default': [cookie()] } }); const p = await s.request('previewBurn');
   await s.request('startBurn', { previewToken: p.data.previewToken }); await s.app.burner.waitForIdle();

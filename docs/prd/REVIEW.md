@@ -158,3 +158,26 @@ New computing terms appear in the technical noun register.
 Editorial review checked requirement scope, direct subjects, failure behavior, ordering, and acceptance evidence.
 Mechanical screening does not establish exhaustive dictionary or grammatical-role conformance.
 No independent ASD-STE100 certification or public release approval is claimed.
+
+## Version 0.1.3 patch review
+
+Review date: 25 October 2026.
+Scope: Startup storage recovery, version metadata, active publishing requirements, and release evidence.
+Status: Local preparation checks passed; signed release verification remains incomplete.
+
+| Check | Result |
+| --- | --- |
+| Requirement identifiers | 309 unique definitions; no identifiers added or removed. |
+| Acceptance identifiers | 115 unique definitions; no identifiers added or removed. |
+| Version consistency | Manifest, package metadata, active requirements, and release paths identify `0.1.3`. |
+| Local links | All 193 file targets and heading anchors resolve across 24 Markdown files. |
+| JSON examples | All fenced JSON examples parse; existing semantic acceptance tests pass. |
+| Sentence screening | Changed PRD sentences and table fragments meet 25 words. |
+| Text hygiene | Code fences, final newlines, trailing whitespace, and diff whitespace pass. |
+| Decision trace | PUB-D06 supersedes the delivery version in PUB-D01; earlier evidence remains historical. |
+| Implementation checks | 151 tests, static checks, packaging, ZIP integrity, and Mozilla validation pass. |
+
+The correction retains the operation lock until explicit dismissal confirms marker and session cleanup.
+Native Firefox checks were not rerun for this patch.
+Signed, platform, accessibility, and lifecycle evidence remains incomplete.
+No full ASD-STE100 conformance or public release approval is claimed.
