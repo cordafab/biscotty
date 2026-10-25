@@ -1,6 +1,6 @@
 # Agent work plan
 
-This plan divides future implementation work.
+This plan defines implementation responsibilities.
 The PRD package itself contains no extension source code.
 
 ## Shared preparation

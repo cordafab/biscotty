@@ -52,9 +52,10 @@ Specifications, test fixture data, and environment examples remain visible.
 
 ## Implementation status
 
-No extension implementation was created in this task.
-No Firefox behavior or release test is recorded as passing.
-The acceptance cases describe required future evidence.
+The original review covered requirements only.
+Extension implementation is now present.
+The [implementation verification record](../implementation/verification.md) contains actual test results and remaining release checks.
+The original document checks above do not establish extension release readiness.
 
 ## Language assurance
 
@@ -63,3 +64,15 @@ Editorial review used short sentences, direct requirements, consistent terms, an
 The full official dictionary was not available through the retrieved PDF.
 Exhaustive vocabulary and grammatical-role conformance is therefore not asserted.
 Independent certification is not claimed.
+
+## Implementation maintenance check
+
+Date: 25 October 2026.
+The product status and agent-plan introduction now reflect the implementation.
+Product requirements and acceptance identifiers are unchanged.
+The package still defines 212 unique requirements and 66 unique acceptance cases.
+Local Markdown links and heading anchors passed the implementation maintenance check.
+The transfer JSON example parsed successfully.
+Changed text and new source files passed whitespace and final-newline checks.
+Implementation test results and pending native cases appear in the [verification record](../implementation/verification.md).
+This maintenance check does not add a language certification or release approval.

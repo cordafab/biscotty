@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Biscotty",
+  "version": "1.0.0",
+  "description": "Manually burn eligible cookies while protecting selected sites and containers.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "biscotty@cordafab.dev",
+      "strict_min_version": "153.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "incognito": "not_allowed",
+  "background": { "scripts": ["src/backend/background.js"], "type": "module", "persistent": false },
+  "action": {
+    "default_title": "Biscotty",
+    "default_popup": "src/frontend/popup.html",
+    "default_area": "navbar",
+    "default_icon": "assets/icon.svg"
+  },
+  "icons": { "48": "assets/icon.svg", "96": "assets/icon.svg" },
+  "options_ui": { "page": "src/frontend/options.html", "open_in_tab": true },
+  "content_security_policy": { "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" }
+}

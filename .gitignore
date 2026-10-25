@@ -34,3 +34,7 @@ Desktop.ini
 /.env.*
 !/.env.example
 !/.env.template
+
+# Native test runtime caches
+__pycache__/
+*.pyc

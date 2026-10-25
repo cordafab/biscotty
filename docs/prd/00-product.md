@@ -1,6 +1,6 @@
 # Product PRD: Biscotty version 1
 
-Status: Approved design; implementation required.
+Status: Approved design; implementation present; release verification incomplete.
 Decision date: 25 October 2026.
 
 ## Purpose

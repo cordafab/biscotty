@@ -1,8 +1,9 @@
-# Biscotty requirements
+# Biscotty
 
 Biscotty is a Firefox cookie manager.
-This repository contains the product requirements for version 1.
-It does not contain extension implementation code.
+This repository contains the native Firefox extension and approved requirements for version 1.
+Implementation uses JavaScript, HTML, CSS, and Firefox APIs with no external libraries.
+Release acceptance remains incomplete; see the [verification record](docs/implementation/verification.md).
 
 The user approved the design on 25 October 2026.
 The requirements use ASD-STE100 Issue 9 as their writing standard.
@@ -25,18 +26,42 @@ See the [language rules](docs/prd/LANGUAGE.md) and the [document review](docs/pr
 | [Glossary](GLOSSARY.md) | Use the agreed product terms. |
 | [Sources](docs/prd/SOURCES.md) | Check Firefox constraints and language sources. |
 
-## Start implementation
+## Run and package
 
-Read the product PRD, glossary, module interfaces, and assigned module PRD.
-Complete the shared foundation before parallel implementation.
-Then use the four work tracks in the agent work plan.
+Firefox desktop 153.0 or later is required. Private browsing is excluded.
+Open `about:debugging#/runtime/this-firefox` in a disposable Firefox profile.
+Select **Load Temporary Add-on**, then choose `manifest.json`.
+Grant HTTP and HTTPS access and keep Firefox containers enabled.
+Use the Biscotty toolbar button to preview a burn or open Settings.
 
-Future source paths define ownership only.
-They do not indicate that those files already exist.
+The initial allow list and protected-container set are empty.
+Review protection before confirming a burn. Burning can sign you out, and websites can recreate cookies.
 
-The implementation MUST use native Firefox APIs and standard platform features.
-The frontend MUST call the backend through its documented interface.
-The backend MUST contain no GUI code.
+No dependency installation or bundler is required. Use Node.js 22 or later:
+
+```sh
+npm test
+npm run check
+npm run package
+```
+
+The unsigned package is `dist/biscotty-1.0.0.zip`, with a SHA-256 file beside it.
+See [release preparation](docs/implementation/release.md) for packaging, permissions, and submission information.
+See [native test instructions](docs/implementation/verification.md#run-native-tests) for disposable Firefox tests.
+
+## Source layout
+
+| Path | Responsibility |
+| --- | --- |
+| `src/core/` | Pure validation, matching, selector safety, and transfer calculations. |
+| `src/backend/` | Firefox adapters, gateway, queued settings, burner, transfer, and public client. |
+| `src/frontend/` | Toolbar popup and full-page configuration editor. |
+| `tests/` | Standard-library tests, controlled adapters, and disposable native Firefox checks. |
+| `scripts/` | Static checks and deterministic native-source packaging. |
+
+The implementation follows the [agent plan](docs/prd/07-agent-plan.md) and [shared contracts](docs/implementation/interfaces.md).
+The backend owns every Firefox API call. GUI code uses the public backend client.
+The extension initiates no network requests, collects no telemetry, and retains no operation history.
 
 ## Requirement words
 

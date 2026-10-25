@@ -1,0 +1,175 @@
+// Loaded only by the disposable native test package; never shipped.
+import { client } from '../../src/backend/client/native.js';
+import { createFirefoxAdapter } from '../../src/backend/firefox/adapter.js';
+import { selectorFor, nativeSelector } from '../../src/backend/burner/selectors.js';
+import { importedText } from './input.js';
+const results = [];
+const setCookie = details => browser.cookies.set({ firstPartyDomain: '', ...details });
+const assert = (value, message = 'Unexpected result') => { if (!value) throw new Error(message); };
+async function check(name, task) {
+  try { await task(); results.push({ name, ok: true }); }
+  catch (error) { results.push({ name, ok: false, error: String(error.message).slice(0, 1000) }); }
+}
+const adapter = createFirefoxAdapter();
+const state = () => client.getState();
+let work, personal;
+async function save(rules = [], protectedContainerRefs = []) {
+  const current = await state();
+  return client.saveConfiguration({ rules, protectedContainerRefs, inactiveDecisions: [] }, current.revision);
+}
+async function burn() {
+  const current = await state();
+  const preview = await client.previewBurn({}, current.revision);
+  if (!preview.eligibleAttempts) return { preview, operation: null };
+  await client.startBurn({ previewToken: preview.previewToken }, current.revision);
+  for (let i = 0; i < 1000; i++) {
+    const operation = (await state()).operation;
+    if (!['running','cancel_requested'].includes(operation.state)) return { preview, operation };
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error('Burn did not finish');
+}
+try {
+  if (importedText) await browser.contextualIdentities.create({ name: 'Native ID offset', color: 'orange', icon: 'circle' });
+  await check('Native manifest/event page initializes empty settings and complete permissions', async () => {
+    const current = await state();
+    assert(current.configurationStatus === 'valid', JSON.stringify(current));
+    assert(current.capabilities.canBurn, JSON.stringify(current.capabilities));
+    assert(current.configuration.rules.length === 0);
+    assert(!JSON.stringify(current).includes('cookieStoreId'));
+  });
+  await check('Native domain adapter: public suffix, IDN, IP and unknown suffix', async () => {
+    assert((await adapter.classifyHost('shop.example.co.uk')).baseDomain === 'example.co.uk');
+    assert((await adapter.classifyHost('co.uk')).knownSuffix);
+    assert((await adapter.classifyHost('localhost')).baseDomain === null);
+    assert((await adapter.classifyHost('[::1]')).kind === 'ipv6');
+    assert((await adapter.classifyHost('xn--bcher-kva.de')).baseDomain === 'xn--bcher-kva.de');
+  });
+  await check('Named containers without open tabs are cataloged', async () => {
+    work = await browser.contextualIdentities.create({ name: 'Native Work', color: 'blue', icon: 'briefcase' });
+    personal = await browser.contextualIdentities.create({ name: 'Native Personal', color: 'green', icon: 'fingerprint' });
+    const current = await state();
+    assert(current.stores.some(store => store.label === 'Native Work'));
+    assert(current.stores.some(store => store.label === 'Native Personal'));
+    await setCookie({ url: 'https://example.com/', name: 'work', value: 'synthetic', storeId: work.cookieStoreId });
+    await setCookie({ url: 'https://example.com/', name: 'personal', value: 'synthetic', storeId: personal.cookieStoreId });
+    const workRef = current.stores.find(store => store.label === 'Native Work').ref;
+    await save([], [workRef]);
+    const result = await burn(); assert(result.operation.state === 'completed', JSON.stringify(result));
+    assert((await adapter.listCookies(work.cookieStoreId)).some(cookie => cookie.name === 'work'));
+    assert(!(await adapter.listCookies(personal.cookieStoreId)).some(cookie => cookie.name === 'personal'));
+  });
+  await check('Native selector avoids future protected parent domain/path collisions', async () => {
+    await save([{ domain: 'example.com', includeSubdomains: false, name: 'collision', path: '/account', scope: { type: 'all' } }]);
+    await setCookie({ url: 'https://shop.example.com/account/deep', name: 'collision', path: '/account/deep', value: 'synthetic' });
+    const current = await state(); const preview = await client.previewBurn({}, current.revision);
+    assert(preview.ambiguous >= 1);
+    await setCookie({ url: 'https://example.com/account', domain: '.example.com', name: 'collision', path: '/account', value: 'protected-synthetic' });
+    if (preview.eligibleAttempts) { await client.startBurn({ previewToken: preview.previewToken }, current.revision); await new Promise(resolve => setTimeout(resolve, 100)); }
+    assert((await adapter.listCookies('firefox-default')).filter(cookie => cookie.name === 'collision').length === 2);
+  });
+  await check('Native partitions, Secure/HttpOnly metadata and bounded deletion', async () => {
+    await save();
+    await setCookie({ url: 'https://example.net/', name: 'partitioned', value: 'synthetic', secure: true, httpOnly: true, partitionKey: { topLevelSite: 'https://example.org' } });
+    await setCookie({ url: 'https://example.net/', name: 'plain', value: 'synthetic', secure: true });
+    const inventory = await adapter.listCookies('firefox-default');
+    const partitioned = inventory.find(cookie => cookie.name === 'partitioned');
+    assert(partitioned?.partitionKey?.topLevelSite === 'https://example.org', JSON.stringify(partitioned));
+    assert(partitioned.httpOnly && partitioned.secure);
+    assert(!JSON.stringify(inventory).includes('synthetic'));
+    const result = await burn(); assert(result.operation.state === 'completed', JSON.stringify(result));
+    assert(result.operation.attemptedCalls === result.operation.plannedAttempts);
+    assert(!(await adapter.listCookies('firefox-default')).some(cookie => ['partitioned','plain'].includes(cookie.name)));
+  });
+  await check('Encoded paths are conservatively skipped; IDN and IPv6 selectors preserve hosts', async () => {
+    const base = { domain: 'example.com', name: 'encoded', path: '/a%2Fb', firstPartyDomain: '', partitionKey: null, secure: true };
+    assert(selectorFor(base, 'normal') === null);
+    assert(selectorFor({ ...base, domain: '.xn--bcher-kva.de', path: '/' }, 'normal').url === 'https://xn--bcher-kva.de/');
+    assert(selectorFor({ ...base, domain: '[::1]', path: '/' }, 'normal').url === 'https://[::1]/');
+    await setCookie({ url: 'https://example.com/a%2Fb', name: 'encoded', path: '/a%2Fb', value: 'synthetic' });
+    const preview = await client.previewBurn({}, (await state()).revision); assert(preview.ambiguous >= 1);
+    const missing = await adapter.removeCookie(nativeSelector({ url: 'https://example.com/', name: 'absent', firstPartyDomain: '', partitionKey: null }, 'firefox-default')); assert(missing === null);
+  });
+  await check('Export strips native identifiers and reimport uses explicit mapping and conflicts', async () => {
+    const current = await state();
+    const exported = await client.prepareExport({}, current.revision);
+    assert(!exported.text.includes('firefox-'));
+    const inspected = await client.inspectImport({ text: exported.text, mode: 'merge' }, current.revision);
+    const mappings = inspected.containers.map(container => ({ sourceRef: container.ref, action: 'retain' }));
+    const plan = await client.planImport({ importHandle: inspected.importHandle, mode: 'merge', mappings }, current.revision);
+    assert(plan.planToken && Array.isArray(plan.conflicts));
+  });
+  await check('Dismissal clears current result; local storage contains configuration only', async () => {
+    const current = await state();
+    if (current.operation) await client.dismissOperation({ operationId: current.operation.id });
+    const stored = await browser.storage.local.get(null);
+    assert(Object.keys(stored).every(key => key === 'biscotty.configuration'), JSON.stringify(Object.keys(stored)));
+    assert((await state()).operation === null);
+  });
+  await check('Options UI renders accessible controls with no remote resources', async () => {
+    assert(document.querySelector('h1'));
+    assert(document.querySelectorAll('button').length > 5);
+    assert([...document.querySelectorAll('script[src],link[href],img[src]')].every(element => new URL(element.src || element.href).protocol === 'moz-extension:'));
+  });
+} catch (error) { results.push({ name: 'Runner setup', ok: false, error: String(error.message) }); }
+await check('Native DOM text safety and form semantics', async () => {
+  const fixture = document.createElement('div'); fixture.id = 'fixture';
+  const output = document.createElement('pre'); output.id = 'results';
+  document.body.append(fixture, output);
+  await import('../../tests/frontend/browser.js');
+  const text = output.textContent;
+  assert(text.includes('PASS UI-A11') && !text.includes('FAIL'), text);
+  output.remove();
+});
+await check('First-party contexts enumerate and delete with explicit separation', async () => {
+  await save();
+  await setCookie({ url: 'https://example.net/', name: 'first-party', value: 'synthetic', firstPartyDomain: 'example.org' });
+  const inventory = await adapter.listCookies('firefox-default');
+  assert(inventory.some(cookie => cookie.name === 'first-party' && cookie.firstPartyDomain === 'example.org'));
+  const result = await burn();
+  assert(result.operation.state === 'completed', JSON.stringify(result));
+  assert(!(await adapter.listCookies('firefox-default')).some(cookie => cookie.name === 'first-party'));
+});
+if (importedText) await check('Cross-profile Replace maps portable settings to different native identifiers', async () => {
+  const current = await state();
+  const inspected = await client.inspectImport({ text: importedText, mode: 'replace' }, current.revision);
+  const destinations = current.stores.filter(store => store.kind === 'container' && store.availability === 'available');
+  const mappings = inspected.containers.map((container, i) => ({ sourceRef: container.ref, action: 'map', targetRef: destinations[i % destinations.length].ref }));
+  let plan = await client.planImport({ importHandle: inspected.importHandle, mode: 'replace', mappings }, current.revision);
+  const decisions = plan.conflicts.map(conflict => ({ conflictId: conflict.id, choice: conflict.choices.includes('imported') ? 'imported' : conflict.choices[0] }));
+  plan = await client.resolveImport({ planToken: plan.planToken, decisions, acknowledgments: { replace: true, manyToOne: true, exclusions: true, recovery: true } }, current.revision);
+  assert(plan.canCommit, JSON.stringify(plan));
+  const committed = await client.commitImport({ planToken: plan.planToken }, current.revision);
+  assert(committed.configuration.rules.some(rule => rule.domain === 'example.org'));
+});
+await check('Native settings dialog preserves unsaved drafts and confirms Save and Cancel', async () => {
+  const wait = async predicate => { for (let i = 0; i < 100; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Settings did not update'); };
+  await save();
+  await wait(() => !document.getElementById('add-rule').disabled);
+  const openDraft = async () => {
+    document.getElementById('add-rule').click();
+    const dialog = document.getElementById('rule-dialog'); assert(dialog.open);
+    document.getElementById('rule-domain').value = 'ui.example.org';
+    document.getElementById('rule-form').requestSubmit();
+    await wait(() => !dialog.open);
+    await wait(() => !document.getElementById('save').disabled);
+  };
+  await openDraft();
+  assert(!(await state()).configuration.rules.some(rule => rule.domain === 'ui.example.org'));
+  document.getElementById('cancel').click();
+  assert(document.getElementById('discard-dialog').open);
+  document.getElementById('confirm-discard').click();
+  await wait(() => document.getElementById('save').disabled);
+  assert(!(await state()).configuration.rules.some(rule => rule.domain === 'ui.example.org'));
+  await openDraft(); document.getElementById('save').click();
+  for (let i = 0; i < 100; i++) { if ((await state()).configuration.rules.some(rule => rule.domain === 'ui.example.org')) return; await new Promise(resolve => setTimeout(resolve, 10)); }
+  throw new Error('Settings Save did not commit');
+});
+await check('Portable snapshot contains selected scope and exact empty name', async () => {
+  const current = await state();
+  const store = current.stores.find(store => store.label === 'Native Work');
+  await save([{ domain: 'example.org', includeSubdomains: true, name: '', path: '/', scope: { type: 'selected', storeRefs: [store.ref, 'normal'] } }], [store.ref]);
+  const exported = await client.prepareExport({}, (await state()).revision);
+  document.documentElement.setAttribute('data-native-export', exported.text);
+});
+document.documentElement.setAttribute('data-native-results', JSON.stringify(results));
