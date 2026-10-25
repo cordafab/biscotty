@@ -1,7 +1,7 @@
 # Product PRD: Biscotty version 1
 
 Status: Approved design; baseline implementation present; release verification incomplete.
-Current Site cookie-domain list: Approved, implementation pending.
+Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
 Decision date: 25 October 2026.
 
 ## Purpose

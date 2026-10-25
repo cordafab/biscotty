@@ -11,8 +11,30 @@ import time
 import sys
 import argparse
 import platform
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[2]
+
+class SiteFixture(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/redirect':
+            self.send_response(302)
+            self.send_header('Location', '/page')
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        port = self.server.server_port
+        body = '<!doctype html><title>Observation fixture</title>'
+        if self.path == '/page':
+            body += '<iframe src="http://127.0.0.1:%d/frame"></iframe>' % port
+        elif self.path == '/frame':
+            body += '<iframe src="/nested"></iframe>'
+        self.wfile.write(body.encode())
+    def log_message(self, *_args):
+        pass
 
 class Marionette:
     def __init__(self, port):
@@ -68,7 +90,9 @@ def main():
             else:
                 shutil.copy2(original, target)
         imported = Path(args.import_file).read_text() if args.import_file else None
-        (source / 'tests/native/input.js').write_text('export const importedText = ' + json.dumps(imported) + ';\n')
+        site_server = ThreadingHTTPServer(('127.0.0.1', 0), SiteFixture)
+        threading.Thread(target=site_server.serve_forever, daemon=True).start()
+        (source / 'tests/native/input.js').write_text('export const importedText = ' + json.dumps(imported) + ';\nexport const fixturePort = ' + str(site_server.server_port) + ';\n')
         # This script is inserted only into the disposable test copy.
         options = source / 'src/frontend/options.html'
         options.write_text(options.read_text().replace('</body>', '<script type="module" src="../../tests/native/runner.js"></script></body>'))
@@ -112,7 +136,7 @@ def main():
                 client.command('Addon:Install', {'path': str(source), 'temporary': True})
                 # Read the test add-on's generated UUID through Firefox's automation context.
                 client.command('Marionette:SetContext', {'value': 'chrome'})
-                result = client.command('WebDriver:ExecuteScript', {'script': 'return JSON.parse(Services.prefs.getStringPref("extensions.webextensions.uuids"))["biscotty@cordafab.dev"];', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
+                result = client.command('WebDriver:ExecuteScript', {'script': 'return JSON.parse(Services.prefs.getStringPref("extensions.webextensions.uuids"))["biscotty@cordafab.com"];', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
                 uuid = result.get('value', result) if isinstance(result, dict) else result
                 client.command('Marionette:SetContext', {'value': 'content'})
                 client.command('WebDriver:Navigate', {'url': 'moz-extension://' + uuid + '/src/frontend/options.html'})

@@ -119,3 +119,13 @@ Existing language-assurance limits remain applicable.
 Extension tests, packaging, native Firefox checks, and signed-update checks were not run for this documentation task.
 New acceptance cases remain future verification obligations.
 No implementation or release-completion claim is added by this review.
+
+## Implementation status update: 25 October 2026
+
+Current Site implementation is present; release verification remains incomplete.
+This update changes status descriptions without changing requirements, acceptance identifiers, contracts, or product decisions.
+The [implementation verification record](../implementation/verification.md#current-site-amendment-evidence) lists controlled checks and observed Firefox results.
+Native toolbar geometry, accessibility, permission-loss, suspension, and signed-release evidence remain incomplete.
+The earlier amendment review records the document status at its review time.
+Changed status lines were checked for concise sentences and consistent product terms.
+No new claim of full ASD-STE100 conformance is made.

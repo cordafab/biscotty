@@ -1,3 +1,4 @@
+import { createRuleFields } from './rule-form.js';
 import { client } from '../backend/client/native.js';
 import { createPopupModel, operationActive, operationTitle, siteStatus, reasonText, storeLabel } from './models.js';
 import { element as el, button, replace, notice, showError } from './dom.js';
@@ -33,11 +34,74 @@ function renderSite() {
   if (controls.canProtect) actions.push(actionButton(`Protect ${view.target.domain}${view.target.includeSubdomains ? ' and subdomains' : ' (exact host)'} in ${storeLabel(view.store)}`, () => model.protect(true), { disabled: busy || locked }));
   if (controls.canRemove) actions.push(actionButton(`Remove site-wide protection in ${storeLabel(view.store)}`, () => model.protect(false), { disabled: busy || locked }));
   if (controls.editorRequired || view.status === 'partial' || view.status === 'full') actions.push(actionButton('Review protection in Settings', () => client.openOptions({ ...(view.store?.ref ? { storeRef: view.store.ref } : {}) })));
-  if (view.status === 'unavailable') actions.push(actionButton('Refresh current site', () => model.refresh()));
+  actions.push(actionButton('Refresh current site', () => model.refresh()));
   if (locked) children.push(notice('Protection changes are paused while a burn runs.'));
   children.push(el('div', { className: 'actions' }, actions), el('small', {}, 'This target may not include third-party cookies. Protection does not guarantee a login session.'));
+  children.push(renderDomains());
   replace(site, children);
 }
+function renderDomains() {
+  const content = [el('h3', {}, 'Associated cookie domains'), el('p', { className: 'muted' }, 'Counts describe associated stored cookies in this store. They do not prove transmission or use.')];
+  if (model.coverage?.state === 'partial') content.push(notice(`${model.coverage.reason || 'Page observation is incomplete.'} Reload the page to observe its activity from the start. Refresh cannot recover earlier activity.`));
+  if (model.domainStale) content.push(notice('This snapshot is stale. Refresh and review the current page and saved rules before editing.'));
+  if (model.domainStatus === 'loading') content.push(el('p', { role: 'status' }, 'Loading associated cookie domains…'));
+  if (model.domainStatus === 'empty') content.push(el('p', { className: 'empty' }, 'No associated stored cookies were found.'));
+  if (model.domainStatus === 'unavailable') content.push(notice(model.domainError?.message || 'Cookie domains are unavailable. Refresh to review the current page.'));
+  if (model.domainStatus === 'error') content.push(notice(model.domainError?.message || 'Cookie domains could not be loaded. Refresh to try again.', 'error'));
+  const rows = model.domains.map((row, index) => el('div', { className: 'domain-row' }, el('div', {}, el('p', { className: 'domain-name' }, row.domain), el('small', {}, `${row.cookieCount} stored ${row.cookieCount === 1 ? 'cookie' : 'cookies'} · ${siteStatus(row.status)}`)), button('✎', () => model.openSiteRule(row), { id: `domain-pencil-${index}`, className: 'domain-pencil', 'aria-label': `Edit protection for ${row.domain}`, disabled: busy || model.domainStale })));
+  content.push(el('div', { className: 'domain-list', tabindex: '0', role: 'region', 'aria-label': 'Associated stored cookie domains' }, rows));
+  if (model.nextPageToken) content.push(actionButton(model.domainStatus === 'loadingMore' ? 'Loading more…' : 'Load more', () => model.loadMoreDomains(), { disabled: busy || model.domainStale || model.domainStatus === 'loadingMore' }));
+  return el('div', { className: 'domain-section' }, content);
+}
+const dialog = document.getElementById('site-rule-dialog');
+let shownEditor = null;
+let openerId = null;
+let shownRule = null;
+let ruleFields;
+function ruleDescription(rule) {
+  const label = ref => storeLabel(model.state.stores.find(store => store.ref === ref));
+  return `${rule.domain}${rule.includeSubdomains ? ' and subdomains' : ' (exact domain)'} · ${rule.name === null ? 'Every name' : `Exact name: “${rule.name}”`} · ${rule.path === null ? 'Every path' : `Exact path: “${rule.path}”`} · ${rule.scope.type === 'all' ? 'All stores' : rule.scope.storeRefs.map(label).join(', ')}`;
+}
+function renderRuleDialog() {
+  const editor = model.ruleEditor;
+  if (!editor) { if (dialog.open) { dialog.close(); document.getElementById(openerId)?.focus(); } shownEditor = null; shownRule = null; return; }
+  if (editor !== shownEditor) {
+    openerId = document.activeElement?.id || openerId;
+    shownEditor = editor; shownRule = null;
+    const choices = editor.row.matchingRuleIndexes.map(index => {
+      const rule = model.state.configuration.rules[index];
+      return button(ruleDescription(rule), () => model.selectSiteRule(index), { className: 'source-rule', 'aria-label': `Edit saved rule: ${ruleDescription(rule)}` });
+    });
+    replace(document.getElementById('site-rule-sources'), el('p', {}, `Protection sources for ${editor.row.domain}`), el('p', {}, reasonText(editor.row.reasons) || 'No saved protection applies.'), choices, button('Add rule', () => model.selectSiteRule(null), { className: 'source-rule' }), button('Review protection in Settings', () => act(() => client.openOptions({ storeRef: model.site.store.ref }))));
+    if (!dialog.open) dialog.showModal();
+  }
+  if (editor.rule !== shownRule) {
+    shownRule = editor.rule;
+    ruleFields = editor.rule ? createRuleFields(editor.rule, model.state.stores, () => {
+      try { document.getElementById('site-rule-notices').firstElementChild.textContent = `Save immediately updates this entire rule: ${ruleDescription(ruleFields.read())}. Changes may affect other domains and stores. Whole-container protection remains in effect.`; } catch { /* An empty selected scope is validated on submit. */ }
+    }) : null;
+    replace(document.getElementById('site-rule-fields'), ruleFields?.node);
+  }
+  const notices = [];
+  if (editor.rule) notices.push(notice(`Save immediately updates this entire rule: ${ruleDescription(editor.rule)}. Changes may affect other domains and stores. Whole-container protection remains in effect.`));
+  if (editor.reviewRequired) notices.push(notice('The page or saved settings changed. Your draft is preserved. Cancel, refresh Current site, and select a current domain and rule to review before saving.'));
+  if (operationActive(model.state?.operation)) notices.push(notice('Save protection is paused while a burn runs.'));
+  replace(document.getElementById('site-rule-notices'), notices);
+  document.getElementById('save-site-rule').disabled = !model.canSaveRule;
+  document.getElementById('cancel-site-rule').disabled = editor.saving;
+  if (ruleFields) ruleFields.node.disabled = editor.saving;
+  for (const choice of document.querySelectorAll('.source-rule')) choice.disabled = editor.saving || editor.reviewRequired;
+  if (editor.error) showError(editor.error, document.getElementById('site-rule-errors'));
+  else replace(document.getElementById('site-rule-errors'));
+}
+document.getElementById('site-rule-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!model.canSaveRule) return;
+  try { await model.saveSiteRule(ruleFields.read()); }
+  catch (error) { showError(error, document.getElementById('site-rule-errors')); }
+});
+document.getElementById('cancel-site-rule').addEventListener('click', () => model.cancelSiteRule());
+dialog.addEventListener('cancel', event => { event.preventDefault(); model.cancelSiteRule(); });
 function renderBurner() {
   const state = model.state;
   if (!state) return;
@@ -68,7 +132,7 @@ function renderBurner() {
   }
   replace(burner, children);
 }
-function render() { renderSite(); renderBurner(); }
+function render() { renderSite(); renderBurner(); renderRuleDialog(); }
 function restoreAccess() {
   const request = client.requestHostAccess();
   act(async () => { const result = await request; if (!result.granted) replace(messages, notice(result.guidance)); await model.refresh(); });

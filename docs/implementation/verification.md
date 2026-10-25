@@ -1,6 +1,6 @@
 # Implementation verification
 
-Date: 25 October 2026. Source version: 1.0.0.
+Date: 25 October 2026. Source version: 0.1.1.
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.
 
@@ -16,7 +16,7 @@ The release is not approved until every mandatory case in the PRDs has the requi
 - Native package ZIP structure and CRCs were independently checked with the operating-system ZIP utility.
 
 Run `npm test` for the current exact test count and observed results.
-The final integrated Node.js check passed 99 tests.
+The baseline integrated Node.js check passed 99 tests; see the amendment evidence below for the current suite.
 The default native run passed 13 scenarios; the isolated cross-profile run passed 14 scenarios.
 Tests use Node.js v26.12.1 and Python 3.9 standard modules, with no third-party packages.
 
@@ -105,3 +105,20 @@ Firefox 153.0, current supported ESR, Windows, Linux, signed installation, signe
 No screen-reader conformance claim is made. Manual keyboard, zoom, contrast and popup lifecycle checks remain.
 No signed package or public release was created.
 These missing checks prevent a version 1 release-complete claim.
+
+## Current Site amendment evidence
+
+The implementation now includes domain snapshots, passive observation, and popup rule saves.
+The final integrated Node.js suite passes 132 tests.
+Controlled tests cover ARCH-A09 through ARCH-A11 and Current Site backend/frontend behavior.
+The observation tests cover redirect ordering, nested-frame replacement, stale documents, same-host reloads, session restoration, failed storage, and back/forward coverage.
+Domain tests cover host matching, current-store selection, FPI/partition filtering, policy reasons, 205-domain paging, narrow commits, deduplication, and failed writes.
+Frontend tests cover paging, rule defaults, full existing-rule fields, immediate Save, draft preservation, stale contexts, and operation locks.
+
+Firefox 158.0.1 on macOS 27.0.1 arm64 passed 14 native scenarios with first-party isolation disabled and enabled.
+A loopback fixture now tests redirects, nested frames, third-party domain association, and same-host reload token rejection.
+The final native runs also exercised the real popup document's pencil, Cancel, immediate Save, and modal closure inside a bounded iframe.
+These checks use a disposable profile and standard-library loopback HTTP server.
+
+Actual toolbar geometry, screen-reader behavior, zoom, popup closure during submission, permission revocation, and event-page suspension still require release evidence.
+Signed installation, signed update, minimum-version Firefox, and other operating-system checks remain open.

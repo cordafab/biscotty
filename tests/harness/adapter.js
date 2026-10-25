@@ -4,6 +4,8 @@ export function createTestAdapter(options = {}) {
   let record = options.record === undefined ? emptyRecord() : clone(options.record);
   let marker = options.marker ?? null;
   let operation = options.operation ?? null;
+  const observations = clone(options.observations || {});
+  const siteListeners = [];
   let catalog = options.catalog || { normalStoreId: 'firefox-default', containers: [{ cookieStoreId: 'firefox-container-4', name: 'Work', color: 'blue', icon: 'briefcase' }, { cookieStoreId: 'firefox-container-9', name: 'Personal', color: 'green', icon: 'fingerprint' }] };
   let access = { granted: true, available: true, reason: '' };
   let tab = { id: 1, url: 'https://shop.example.com/path', cookieStoreId: 'firefox-container-4', incognito: false };
@@ -19,6 +21,11 @@ export function createTestAdapter(options = {}) {
     setCatalog(value) { catalog = clone(value); },
     setAccess(value) { access = { ...access, ...value }; listeners.forEach(fn => fn()); },
     setTab(value) { tab = { ...tab, ...value }; },
+    emitSiteActivity(event) { siteListeners.forEach(fn => fn(clone(event))); },
+    onSiteActivity(fn) { siteListeners.push(fn); return () => { const index = siteListeners.indexOf(fn); if (index >= 0) siteListeners.splice(index, 1); }; },
+    async readSiteObservations() { if (faults.observationRead) throw new Error('observation read'); return clone(observations); },
+    async writeSiteObservation(tabId, value) { if (faults.observationWrite) throw new Error('observation write'); observations[tabId] = clone(value); },
+    async clearSiteObservation(tabId) { if (faults.observationWrite) throw new Error('observation clear'); if (tabId === undefined) { for (const key of Object.keys(observations)) delete observations[key]; } else delete observations[tabId]; },
     async readConfigurationRecord() { if (faults.read) throw new Error('read'); return clone(record); },
     async writeConfigurationRecord(value) { if (faults.write) throw new Error('write'); record = clone(value); },
     async readMarker() { return marker; },

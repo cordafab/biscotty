@@ -1,3 +1,4 @@
+import { editableRule } from './rule-form.js';
 import { client } from '../backend/client/native.js';
 import { createEditorModel, createImportModel, operationActive, operationTitle, storeLabel, reviewInactiveDecision } from './models.js';
 import { element as el, button, field, checkbox, replace, notice, showError } from './dom.js';
@@ -130,7 +131,7 @@ $('rule-form').addEventListener('submit', event => {
   if (!model.canEdit) return showError(new Error('Protection changes are paused. Close this form and review availability.'), $('rule-errors'));
   const selected = [...$('rule-store-options').querySelectorAll('input:checked')].map(input => input.value);
   if ($('rule-scope').value === 'selected' && !selected.length) return showError(new Error('Select at least one store.'), $('rule-errors'));
-  const rule = { domain: $('rule-domain').value, includeSubdomains: $('rule-subdomains').checked, name: $('rule-any-name').checked ? null : $('rule-name').value, path: $('rule-any-path').checked ? null : $('rule-path').value, scope: $('rule-scope').value === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: selected } };
+  const rule = editableRule({ domain: $('rule-domain').value, includeSubdomains: $('rule-subdomains').checked, anyName: $('rule-any-name').checked, name: $('rule-name').value, anyPath: $('rule-any-path').checked, path: $('rule-path').value, scope: $('rule-scope').value, storeRefs: selected });
   model.edit(draft => { if (ruleIndex === null) draft.rules.push(rule); else draft.rules[ruleIndex] = rule; });
   formDirty = false; $('rule-dialog').close();
 });

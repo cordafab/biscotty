@@ -32,7 +32,7 @@ const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 if (manifest.manifest_version !== 3 || manifest.version !== pkg.version || manifest.browser_specific_settings.gecko.strict_min_version !== '153.0' || manifest.incognito !== 'not_allowed') errors.push('Manifest does not match product platform');
 if (pkg.dependencies || pkg.devDependencies || pkg.optionalDependencies) errors.push('External dependencies are prohibited');
-if (JSON.stringify([...manifest.permissions].sort()) !== JSON.stringify(['cookies','storage','contextualIdentities','publicSuffix'].sort())) errors.push('Unexpected permissions');
+if (JSON.stringify([...manifest.permissions].sort()) !== JSON.stringify(['cookies','storage','contextualIdentities','publicSuffix','webRequest','webNavigation'].sort())) errors.push('Unexpected permissions');
 if (manifest.content_security_policy.extension_pages.indexOf("connect-src 'none'") === -1) errors.push('Outbound connections must be blocked');
 const resources = [manifest.action.default_popup, manifest.action.default_icon, manifest.options_ui.page, ...manifest.background.scripts, ...Object.values(manifest.icons)];
 for (const path of resources) try { await stat(resolve(root, path)); } catch { errors.push(`Missing manifest resource: ${path}`); }

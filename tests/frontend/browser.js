@@ -1,3 +1,4 @@
+import { createRuleFields } from '../../src/frontend/rule-form.js';
 import { element, checkbox, field } from '../../src/frontend/dom.js';
 const hostile = '<img src=x onerror="globalThis.attacked=true"><script>globalThis.attacked=true</script>';
 const fixture = document.getElementById('fixture');
@@ -10,5 +11,10 @@ function check(name, condition) { results.push(`${condition ? 'PASS' : 'FAIL'} $
 check('UI-A11 imported and cookie-derived HTML renders as inert text', text.textContent === hostile && !text.querySelector('img, script') && !globalThis.attacked);
 check('UI-A12 checkbox is natively keyboard-accessible and labeled', control.input.closest('label').textContent === hostile && control.input.type === 'checkbox');
 check('UI-A35 controls use native accessible form semantics', fixture.querySelectorAll('label').length >= 2);
+const fields = createRuleFields({ domain: hostile, includeSubdomains: false, name: null, path: null, scope: { type: 'selected', storeRefs: ['normal'] } }, [{ ref: 'normal', label: 'Normal browsing', availability: 'available' }]);
+fixture.append(fields.node);
+check('UI-A17 popup rule fields retain exact domain and selected store', fields.read().domain === hostile && fields.read().scope.storeRefs[0] === 'normal' && !fields.read().includeSubdomains);
+check('UI-A24 shared popup fields use labeled native controls', [...fields.node.querySelectorAll('input, select')].every(input => input.closest('label')));
+check('UI-A11 rule field website text is inert', !fields.node.querySelector('img, script') && !globalThis.attacked);
 document.getElementById('results').textContent = results.join('\n');
 fixture.remove();

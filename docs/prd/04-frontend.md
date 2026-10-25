@@ -1,6 +1,6 @@
 # PRD: Frontend
 
-Current Site cookie-domain list: Approved, implementation pending.
+Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
 Owner: Track C.
 Depends on the [module interfaces](01-module-interfaces.md).
 The frontend owns the GUI and calls backend actions.
@@ -237,4 +237,4 @@ Replace requires an explicit acknowledgment of replaced settings.
 Track C supplies UI-A14 through UI-A25 through the public backend client.
 Fixtures cover partial observation coverage, multiple rules, broader scopes, container protection, and stale page contexts.
 Native Firefox checks verify popup geometry, focus, accessible labels, and closure during a submitted Save.
-These cases remain pending until implementation evidence is recorded.
+Controlled evidence and remaining native checks appear in the [verification record](../implementation/verification.md).

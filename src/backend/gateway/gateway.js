@@ -1,7 +1,7 @@
 import { BiscottyError } from '../../core/errors.js';
-export const ACTIONS = Object.freeze(['getState', 'getCookies', 'getSiteContext', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'cancelBurn', 'dismissOperation', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport', 'openOptions', 'requestHostAccess']);
-const revisions = new Set(['setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport']);
-const mutations = new Set(['setSiteProtection', 'saveConfiguration', 'startBurn', 'commitImport']);
+export const ACTIONS = Object.freeze(['getState', 'getCookies', 'getSiteContext', 'getSiteCookieDomains', 'saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'cancelBurn', 'dismissOperation', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport', 'openOptions', 'requestHostAccess']);
+const revisions = new Set(['saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport']);
+const mutations = new Set(['saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'startBurn', 'commitImport']);
 const recoveryActions = new Set(['inspectImport', 'planImport', 'resolveImport', 'commitImport']);
 export function createGateway({ extensionId, baseURL, handlers }) {
   const requests = new Map();
@@ -9,10 +9,11 @@ export function createGateway({ extensionId, baseURL, handlers }) {
     const response = { protocolVersion: 1, requestId: typeof request?.requestId === 'string' ? request.requestId : '' };
     try {
       const allowedPages = ['src/frontend/popup.html', 'src/frontend/options.html'];
-      const owner = sender?.url;
-      if (sender?.id !== extensionId || !allowedPages.some(path => owner === new URL(path, baseURL).href) || sender?.tab?.incognito) {
+      const pageURL = sender?.url;
+      if (sender?.id !== extensionId || !allowedPages.some(path => pageURL === new URL(path, baseURL).href) || sender?.tab?.incognito) {
         throw new BiscottyError('INVALID_REQUEST', 'Only Biscotty pages can use this action.');
       }
+      const owner = JSON.stringify([pageURL, sender.documentId ?? null, sender.tab?.id ?? null, sender.frameId ?? null]);
       if (!request || request.protocolVersion !== 1 || typeof request.requestId !== 'string' || !request.requestId || request.requestId.length > 128 || !ACTIONS.includes(request.action) || !request.payload || typeof request.payload !== 'object' || Array.isArray(request.payload)) {
         throw new BiscottyError('INVALID_REQUEST', 'The request is invalid.');
       }

@@ -4,3 +4,11 @@
 @media (max-width: 480px) { .two-columns { grid-template-columns: 1fr; } .row { grid-template-columns: 1fr; } .popup { width: 100vw; } }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s ease; } }
 @media (forced-colors: active) { button, .card, input, select, .notice, .pill { border: 1px solid CanvasText; } button.primary, button.danger { background: ButtonFace; color: ButtonText; } }
+.domain-section { margin-top: 1.2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.domain-list { max-height: 15rem; overflow: auto; }
+.domain-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .65rem; align-items: center; padding: .65rem 0; border-bottom: 1px solid var(--line); }
+.domain-row p { margin: 0; }
+.domain-name { overflow-wrap: anywhere; }
+.domain-pencil { min-width: 2.75rem; min-height: 2.75rem; }
+.popup dialog { width: calc(100% - 1rem); padding: 1rem; max-height: 95vh; }
+.source-rule { display: block; width: 100%; text-align: left; overflow-wrap: anywhere; margin: .5rem 0; }

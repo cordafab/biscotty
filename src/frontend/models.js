@@ -60,15 +60,80 @@ export function createEditorModel(client, changed = () => {}) {
 
 export function createPopupModel(client, changed = () => {}) {
   let previewGeneration = 0;
+  let snapshotGeneration = 0;
   const model = {
     state: null, site: null, preview: null, preparing: false, busy: false, error: null,
+    domains: [], domainStatus: 'loading', coverage: null, nextPageToken: null, domainRevision: null, domainStale: false, domainError: null, ruleEditor: null,
+    get canSaveRule() { return Boolean(model.ruleEditor?.rule && !model.ruleEditor.saving && !model.ruleEditor.reviewRequired && !model.domainStale && model.state?.capabilities.canChangeProtection && !operationActive(model.state?.operation)); },
     async refresh() {
       const previousCatalog = model.state?.catalogGeneration;
       model.state = await client.getState();
       if (model.preview && (model.preview.revision !== model.state.revision || previousCatalog !== model.state.catalogGeneration || !model.state.capabilities.canBurn)) model.cancelPreview();
       try { model.site = await client.getSiteContext(await client.windowContext()); }
       catch (error) { model.site = { status: 'unavailable', reasons: [error.message], controls: {} }; }
+      await model.refreshDomains();
       changed();
+    },
+    async refreshDomains() {
+      const generation = ++snapshotGeneration;
+      model.domains = []; model.nextPageToken = null; model.domainError = null; model.domainStale = false; model.coverage = null;
+      if (model.ruleEditor) model.ruleEditor.reviewRequired = true;
+      if (!model.site?.contextToken) { model.domainStatus = 'unavailable'; changed(); return; }
+      model.domainStatus = 'loading'; changed();
+      try {
+        const page = await client.getSiteCookieDomains({ contextToken: model.site.contextToken, pageSize: 100 });
+        if (generation !== snapshotGeneration) return;
+        model.domains = page.domains; model.coverage = page.coverage; model.domainRevision = page.revision; model.nextPageToken = page.nextPageToken;
+        model.domainStatus = page.domains.length ? 'ready' : 'empty';
+      } catch (error) {
+        if (generation !== snapshotGeneration) return;
+        model.domainError = error; model.domainStatus = ['PERMISSION_REQUIRED', 'CONTEXT_UNAVAILABLE', 'STALE_SITE_CONTEXT'].includes(error.code) ? 'unavailable' : 'error';
+      } finally { changed(); }
+    },
+    async loadMoreDomains() {
+      if (!model.nextPageToken || model.domainStale || model.domainStatus === 'loadingMore') return;
+      const generation = snapshotGeneration;
+      model.domainStatus = 'loadingMore'; changed();
+      try {
+        const page = await client.getSiteCookieDomains({ contextToken: model.site.contextToken, pageSize: 100, pageToken: model.nextPageToken });
+        if (generation !== snapshotGeneration) return;
+        model.domains.push(...page.domains); model.nextPageToken = page.nextPageToken; model.domainStatus = 'ready';
+      } catch (error) {
+        if (generation !== snapshotGeneration) return;
+        model.domainError = error; model.domainStatus = 'error';
+        if (['STALE_SITE_CONTEXT', 'REVISION_CONFLICT'].includes(error.code)) model.domainStale = true;
+      } finally { changed(); }
+    },
+    openSiteRule(row) {
+      if (model.domainStale) return;
+      model.ruleEditor = { row: copy(row), ruleIndex: null, rule: null, saving: false, error: null, reviewRequired: false, revision: model.domainRevision };
+      if (!row.matchingRuleIndexes.length) model.selectSiteRule(null);
+      changed();
+    },
+    selectSiteRule(index) {
+      const editor = model.ruleEditor;
+      if (!editor || editor.saving || editor.reviewRequired || (index !== null && !editor.row.matchingRuleIndexes.includes(index))) return;
+      editor.ruleIndex = index;
+      editor.rule = index === null ? { domain: editor.row.domain, includeSubdomains: false, name: null, path: null, scope: { type: 'selected', storeRefs: [model.site.store.ref] } } : copy(model.state.configuration.rules[index]);
+      editor.error = null; changed();
+    },
+    cancelSiteRule() { if (model.ruleEditor?.saving) return false; model.ruleEditor = null; changed(); return true; },
+    async saveSiteRule(rule) {
+      if (!model.canSaveRule) return;
+      const editor = model.ruleEditor;
+      editor.rule = copy(rule); editor.saving = true; editor.error = null; changed();
+      try {
+        await client.saveSiteRule({ domainToken: editor.row.domainToken, ruleIndex: editor.ruleIndex, rule: copy(rule) }, editor.revision);
+        model.ruleEditor = null;
+        await model.refresh();
+      } catch (error) {
+        editor.error = error;
+        if (!error.code || ['REVISION_CONFLICT', 'STALE_SITE_CONTEXT', 'STORAGE_FAILED', 'INTERNAL_FAILURE', 'PERMISSION_REQUIRED', 'INVALID_REQUEST'].includes(error.code)) {
+          editor.reviewRequired = true; model.domainStale = true;
+          if (error.code === 'STALE_SITE_CONTEXT') { model.domains = []; model.domainStatus = 'unavailable'; }
+        }
+        throw error;
+      } finally { editor.saving = false; changed(); }
     },
     async makePreview() {
       const generation = ++previewGeneration;
@@ -93,9 +158,16 @@ export function createPopupModel(client, changed = () => {}) {
     },
     async cancelBurn() { await client.cancelBurn({ operationId: model.state.operation.id }); await model.refresh(); },
     async dismiss() { await client.dismissOperation({ operationId: model.state.operation.id }); await model.refresh(); },
-    subscribe() { return client.subscribe(event => {
+    subscribe() { return client.subscribe(async event => {
       if (event.gap || ['configuration', 'stores', 'capabilities'].includes(event.reason)) model.cancelPreview();
-      return model.refresh().catch(error => { model.error = error; changed(); });
+      if (event.gap || ['configuration', 'stores', 'capabilities', 'site', 'siteContext'].includes(event.reason)) {
+        snapshotGeneration++; model.domainStale = true;
+        if (model.ruleEditor) model.ruleEditor.reviewRequired = true;
+        if (event.gap || ['site', 'siteContext', 'capabilities'].includes(event.reason)) { model.domains = []; model.nextPageToken = null; model.domainStatus = 'unavailable'; }
+      }
+      try { model.state = await client.getState(); }
+      catch (error) { model.error = error; }
+      changed();
     }); }
   };
   return model;

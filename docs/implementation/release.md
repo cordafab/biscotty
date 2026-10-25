@@ -1,6 +1,6 @@
 # Release preparation
 
-Version: 1.0.0. Status: unsigned development package; release acceptance remains incomplete.
+Version: 0.1.1. Status: unsigned development package; release acceptance remains incomplete.
 
 ## Package native sources
 
@@ -12,7 +12,7 @@ npm run check
 npm run package
 ```
 
-The package is `dist/biscotty-1.0.0.zip`. A SHA-256 file is written beside it.
+The package is `dist/biscotty-0.1.1.zip`. A SHA-256 file is written beside it.
 Packaging uses Node.js standard modules and fixed ZIP timestamps. Repeated builds of unchanged source produce identical archives.
 Only `manifest.json`, production `src/` files, and packaged `assets/` are included.
 Tests, disposable profile files, documentation, development scripts, and operation data are excluded.
@@ -60,7 +60,7 @@ The extension has no content scripts, external resources, or remote code.
 1. Review the outstanding [verification evidence](verification.md).
 2. Run the minimum-version, stable, ESR, operating-system, and signed-install matrix.
 3. Confirm zero unresolved protection defects.
-4. Review the identity `biscotty@cordafab.dev` before the first signed submission.
+4. Review the identity `biscotty@cordafab.com` before the first signed submission.
 5. Review current [Mozilla manifest declarations](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings).
 6. Review current [Mozilla add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/).
 7. Submit the native-source ZIP through the release owner's Mozilla account when release approval is complete.

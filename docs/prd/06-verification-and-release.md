@@ -1,6 +1,6 @@
 # PRD: Verification and release
 
-Current Site acceptance additions: Approved, implementation pending.
+Current Site acceptance additions: Approved; implementation present; release verification incomplete.
 Owner: Integration agent after the four implementation tracks.
 Each track supplies its own acceptance evidence before integration.
 

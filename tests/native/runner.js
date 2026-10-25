@@ -2,7 +2,7 @@
 import { client } from '../../src/backend/client/native.js';
 import { createFirefoxAdapter } from '../../src/backend/firefox/adapter.js';
 import { selectorFor, nativeSelector } from '../../src/backend/burner/selectors.js';
-import { importedText } from './input.js';
+import { importedText, fixturePort } from './input.js';
 const results = [];
 const setCookie = details => browser.cookies.set({ firstPartyDomain: '', ...details });
 const assert = (value, message = 'Unexpected result') => { if (!value) throw new Error(message); };
@@ -44,6 +44,54 @@ try {
     assert((await adapter.classifyHost('localhost')).baseDomain === null);
     assert((await adapter.classifyHost('[::1]')).kind === 'ipv6');
     assert((await adapter.classifyHost('xn--bcher-kva.de')).baseDomain === 'xn--bcher-kva.de');
+  });
+  await check('SITE native redirects, nested frames, domain snapshots and same-host reload invalidate popup saves', async () => {
+    const topURL = `http://localhost:${fixturePort}`;
+    await setCookie({ url: `${topURL}/`, name: 'observed-top', value: 'synthetic' });
+    await setCookie({ url: `http://127.0.0.1:${fixturePort}/`, name: 'observed-frame', value: 'synthetic' });
+    const tab = await browser.tabs.create({ url: `${topURL}/redirect`, active: true });
+    try {
+      for (let i = 0; i < 200; i++) {
+        const current = await browser.tabs.get(tab.id);
+        if (current.status === 'complete' && current.url?.endsWith('/page')) break;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      const site = await client.getSiteContext({ windowId: tab.windowId });
+      assert(site.contextToken, JSON.stringify(site));
+      const snapshot = await client.getSiteCookieDomains({ contextToken: site.contextToken });
+      assert(snapshot.domains.some(row => row.domain === 'localhost'), JSON.stringify(snapshot));
+      assert(snapshot.domains.some(row => row.domain === '127.0.0.1'), JSON.stringify(snapshot));
+      const popup = document.createElement('iframe');
+      popup.src = browser.runtime.getURL('src/frontend/popup.html');
+      popup.style.width = '380px'; popup.style.height = '560px';
+      document.body.prepend(popup);
+      try {
+        for (let i = 0; i < 200 && !popup.contentDocument?.querySelector('[aria-label="Edit protection for localhost"]'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+        const ui = popup.contentDocument;
+        const pencil = ui.querySelector('[aria-label="Edit protection for localhost"]');
+        assert(pencil, 'Native popup did not render the observed domain.');
+        pencil.click();
+        assert(ui.querySelector('dialog').open, 'Pencil did not open the native dialog.');
+        assert(ui.querySelector('#site-rule-fields input').value === 'localhost');
+        ui.querySelector('#cancel-site-rule').click();
+        assert(!ui.querySelector('dialog').open, 'Cancel did not close the dialog.');
+        assert(!(await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Cancel changed saved rules.');
+        pencil.click();
+        ui.querySelector('#save-site-rule').click();
+        for (let i = 0; i < 200 && ui.querySelector('dialog').open; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        assert(!ui.querySelector('dialog').open, 'Successful Save did not close the dialog.');
+        assert((await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Popup Save did not commit the new rule.');
+      } finally { popup.remove(); }
+      const refreshed = await client.getSiteContext({ windowId: tab.windowId });
+      const currentSnapshot = await client.getSiteCookieDomains({ contextToken: refreshed.contextToken });
+      const row = currentSnapshot.domains.find(row => row.domain === 'localhost');
+      await browser.tabs.reload(tab.id);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      let failure;
+      try { await client.saveSiteRule({ domainToken: row.domainToken, ruleIndex: null, rule: { domain: 'localhost', includeSubdomains: false, name: null, path: null, scope: { type: 'selected', storeRefs: ['normal'] } } }, currentSnapshot.revision); }
+      catch (error) { failure = error.code; }
+      assert(failure === 'STALE_SITE_CONTEXT', String(failure));
+    } finally { await browser.tabs.remove(tab.id); }
   });
   await check('Named containers without open tabs are cataloged', async () => {
     work = await browser.contextualIdentities.create({ name: 'Native Work', color: 'blue', icon: 'briefcase' });

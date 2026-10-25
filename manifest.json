@@ -1,16 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Biscotty",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "Manually burn eligible cookies while protecting selected sites and containers.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "biscotty@cordafab.dev",
+      "id": "biscotty@cordafab.com",
       "strict_min_version": "153.0",
       "data_collection_permissions": { "required": ["none"] }
     }
   },
-  "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix"],
+  "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix", "webRequest", "webNavigation"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "incognito": "not_allowed",
   "background": { "scripts": ["src/backend/background.js"], "type": "module" },

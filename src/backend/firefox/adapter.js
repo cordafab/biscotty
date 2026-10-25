@@ -2,6 +2,7 @@ import { BiscottyError, clone } from '../../core/errors.js';
 const CONFIG = 'biscotty.configuration';
 const MARKER = 'biscotty.inProgress';
 const CURRENT = 'biscotty.currentOperation';
+const OBSERVATIONS = 'biscotty.siteObservations';
 const origins = ['http://*/*', 'https://*/*'];
 export function sanitizeCookie(cookie) {
   return {
@@ -31,6 +32,55 @@ export function createFirefoxAdapter(api = browser) {
     readCurrentOperation: () => read(api.storage.session, CURRENT),
     writeCurrentOperation: operation => write(api.storage.session, CURRENT, operation),
     clearCurrentOperation: () => clear(api.storage.session, CURRENT),
+    readSiteObservations: async () => (await read(api.storage.session, OBSERVATIONS)) || {},
+    async writeSiteObservation(tabId, record) {
+      const records = (await read(api.storage.session, OBSERVATIONS)) || {};
+      records[tabId] = clone(record);
+      await write(api.storage.session, OBSERVATIONS, records);
+    },
+    async clearSiteObservation(tabId) {
+      if (tabId === undefined) return clear(api.storage.session, OBSERVATIONS);
+      const records = (await read(api.storage.session, OBSERVATIONS)) || {};
+      delete records[tabId];
+      if (Object.keys(records).length) await write(api.storage.session, OBSERVATIONS, records);
+      else await clear(api.storage.session, OBSERVATIONS);
+    },
+    onSiteActivity(listener) {
+      const subscriptions = [];
+      function subscribe(source, handler, filter) {
+        if (!source) return;
+        if (filter) source.addListener(handler, filter);
+        else source.addListener(handler);
+        subscriptions.push(() => source.removeListener(handler));
+      }
+      function reduce(kind, details) {
+        let url;
+        try { url = new URL(details.url); } catch {}
+        const supported = url && ['http:', 'https:'].includes(url.protocol);
+        if (!supported && details.frameId !== 0) return;
+        const ancestor = details.frameAncestors?.[0];
+        listener({
+          kind: supported ? kind : 'unsupported', tabId: details.tabId,
+          frameId: details.frameId, parentFrameId: details.parentFrameId ?? ancestor?.frameId,
+          documentId: details.documentId ?? null,
+          parentDocumentId: details.parentDocumentId ?? ancestor?.documentId ?? null,
+          host: supported ? url.hostname.toLowerCase().replace(/\.$/, '') : null,
+          scheme: supported ? url.protocol : null, storeId: details.cookieStoreId ?? null,
+          requestId: details.requestId ?? null, requestType: details.type ?? null,
+          incognito: details.incognito === true,
+          restored: kind === 'committed' && Boolean(details.transitionQualifiers?.includes('forward_back'))
+        });
+      }
+      const requestFilter = { urls: origins };
+      subscribe(api.webRequest?.onBeforeRequest, details => reduce('request', details), requestFilter);
+      subscribe(api.webRequest?.onCompleted, details => reduce('requestFinished', details), requestFilter);
+      subscribe(api.webRequest?.onErrorOccurred, details => reduce('requestFinished', details), requestFilter);
+      subscribe(api.webNavigation?.onBeforeNavigate, details => reduce('beforeNavigate', details));
+      subscribe(api.webNavigation?.onCommitted, details => reduce('committed', details));
+      subscribe(api.webNavigation?.onErrorOccurred, details => reduce('navigationError', details));
+      subscribe(api.tabs.onRemoved, tabId => listener({ kind: 'closed', tabId }));
+      return () => subscriptions.forEach(unsubscribe => unsubscribe());
+    },
     async getCatalog() {
       try {
         const containers = await api.contextualIdentities.query({});
@@ -41,8 +91,8 @@ export function createFirefoxAdapter(api = browser) {
     },
     async getAccess() {
       try {
-        const granted = await api.permissions.contains({ permissions: ['cookies', 'storage', 'contextualIdentities', 'publicSuffix'], origins });
-        const available = Boolean(api.cookies && api.publicSuffix && api.contextualIdentities);
+        const granted = await api.permissions.contains({ permissions: ['cookies', 'storage', 'contextualIdentities', 'publicSuffix', 'webRequest', 'webNavigation'], origins });
+        const available = Boolean(api.cookies && api.publicSuffix && api.contextualIdentities && api.webRequest && api.webNavigation);
         return { granted, available, reason: !granted ? 'Restore website access in Firefox Add-ons → Biscotty → Permissions.' : !available ? 'Required Firefox features are unavailable.' : '' };
       } catch { return { granted: false, available: false, reason: 'Firefox permissions could not be checked.' }; }
     },

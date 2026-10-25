@@ -64,3 +64,20 @@ Burn preview `{ previewToken, revision, stores, eligibleAttempts, ruleProtected,
 Operation `{ id, state, plannedAttempts, attemptedCalls, removedCalls, notFoundCalls, errors, unattemptedCalls, safetySkips, reason }`.
 `startBurn` returns `{ operationId }`. `cancelBurn`/`dismissOperation` payload `{ operationId }`.
 Public labels must not show transport/native identifiers.
+
+## Current Site domains
+
+`getSiteCookieDomains({ contextToken, pageSize?, pageToken? })` returns `{ domains, storeRef, revision, coverage, nextPageToken }`.
+Each domain row contains `{ domain, cookieCount, status, reasons, matchingRuleIndexes, domainToken }`.
+Page sizes range from 1 through 200; continuation retains the original size and context.
+Snapshots remain fixed during subsequent page activity and cookie changes.
+
+`saveSiteRule({ domainToken, ruleIndex, rule }, expectedRevision)` commits one offered rule or appends a rule when its index is null.
+It returns `{ revision }` and preserves unrelated configuration.
+Navigation, permission, catalog, owner, revision, operation-lock, and complete-record validation checks apply before writing.
+
+`createObservations({ adapter, onInvalidate })` registers reduced activity listeners synchronously and exposes `{ ready, get, invalidate }`.
+`ready` is a promise; `get(tab)` returns the current private observation with its navigation generation and coverage.
+Observation writes use a separate serialized queue and session storage only.
+`siteContext` events invalidate the displayed page context; ordinary observed-host additions send no inventory-refresh event.
+The adapter requires passive `webRequest` and `webNavigation` permissions without headers, bodies, blocking, or content scripts.

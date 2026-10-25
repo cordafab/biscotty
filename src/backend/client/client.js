@@ -1,5 +1,5 @@
-let sequence = 0;
 export function createClient(transport) {
+  let sequence = 0;
   const client = {
     async request(action, payload = {}, expectedRevision) {
       const requestId = crypto.randomUUID();
@@ -19,7 +19,7 @@ export function createClient(transport) {
     requestHostAccess() { return transport.requestHostAccess(); },
     windowContext() { return transport.windowContext(); }
   };
-  for (const action of ['getState','getCookies','getSiteContext','setSiteProtection','saveConfiguration','previewBurn','startBurn','cancelBurn','dismissOperation','prepareExport','inspectImport','planImport','resolveImport','commitImport','openOptions']) {
+  for (const action of ['getState','getCookies','getSiteContext','getSiteCookieDomains','saveSiteRule','setSiteProtection','saveConfiguration','previewBurn','startBurn','cancelBurn','dismissOperation','prepareExport','inspectImport','planImport','resolveImport','commitImport','openOptions']) {
     client[action] = (payload = {}, revision) => client.request(action, payload, revision);
   }
   return client;

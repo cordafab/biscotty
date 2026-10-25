@@ -1,7 +1,7 @@
 # Shared module interfaces
 
 Status: Required contract for all implementation tracks.
-Current Site additions: Approved, implementation pending.
+Current Site additions: Approved; implementation present; release verification incomplete.
 Owner: Integration agent.
 Read with the [product PRD](00-product.md) and [data contract](02-protection-and-settings.md#configuration-data).
 

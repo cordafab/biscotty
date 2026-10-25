@@ -6,10 +6,13 @@ const rule = { domain: 'example.com', includeSubdomains: true, name: null, path:
 function fixture() {
   const state = { configuration: { rules: [structuredClone(rule)], protectedContainerRefs: [] }, configurationStatus: 'valid', revision: 1, stores: [{ ref: 'normal', name: 'Normal browsing', kind: 'normal', availability: 'available' }, { ref: 'work', name: 'Work', kind: 'container', availability: 'available' }], capabilities: { canBurn: true, canReadCookies: true, canChangeProtection: true }, operation: null };
   let event;
+  let sequence = 0;
   const calls = [];
   const handlers = {
     getState: () => structuredClone(state),
     getSiteContext: () => ({ contextToken: 'captured-site', target: { domain: 'example.com', includeSubdomains: true }, store: state.stores[1], status: 'full', reasons: ['Saved rule in Work'], controls: { canRemove: true } }),
+    getSiteCookieDomains: () => ({ domains: [{ domain: 'example.com', cookieCount: 4, status: 'full', reasons: [], matchingRuleIndexes: [0], domainToken: 'domain-token' }], revision: state.revision, storeRef: 'work', coverage: { state: 'observed', reason: null }, nextPageToken: null }),
+    saveSiteRule: () => { state.revision++; return { revision: state.revision }; },
     saveConfiguration(payload, request) {
       if (request.expectedRevision !== state.revision) throw Object.assign(new Error('Review newer saved settings.'), { code: 'REVISION_CONFLICT' });
       state.configuration = { rules: structuredClone(payload.rules), protectedContainerRefs: structuredClone(payload.protectedContainerRefs) };
@@ -35,7 +38,7 @@ function fixture() {
     subscribe(listener) { event = listener; return () => { event = null; }; },
     windowContext: async () => ({ windowId: 4 })
   });
-  return { client, state, calls, handlers, event: async () => { event?.({ type: 'stateChanged', sequence: 1 }); await new Promise(resolve => setTimeout(resolve, 0)); } };
+  return { client, state, calls, handlers, event: async (reason) => { event?.({ type: 'stateChanged', sequence: ++sequence, reason }); await new Promise(resolve => setTimeout(resolve, 0)); } };
 }
 test('UI-A09 draft changes do not call the backend; Cancel requires discard decision; Save commits once', async () => {
   const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
@@ -144,4 +147,87 @@ test('Inactive reference draft review shows resulting scopes, retained destinati
   const removed = reviewInactiveDecision(draft, draft.inactiveDecisions[0]);
   assert.equal(removed.affectedRules.length, 2); assert.equal(removed.affectedRules[0].requiresEdit, true); assert.equal(removed.affectedRules[1].emptyScope, true); assert.equal(removed.removesWholeContainerProtection, true);
   assert.deepEqual(draft.rules[1].scope.storeRefs, ['inactive']);
+});
+
+test('UI-A14 UI-A15 UI-A21 domain pages append one captured snapshot; operation events do not enumerate again', async () => {
+  const f = fixture();
+  const rows = Array.from({ length: 101 }, (_, index) => ({ domain: `${String(index).padStart(3, '0')}.example.com`, cookieCount: index + 1, status: 'none', matchingRuleIndexes: [], reasons: [], domainToken: `domain-${index}` }));
+  f.handlers.getSiteCookieDomains = payload => ({ domains: structuredClone(payload.pageToken ? rows.slice(100) : rows.slice(0, 100)), nextPageToken: payload.pageToken ? null : 'page-2', revision: 1, storeRef: 'work', coverage: { state: 'partial', reason: 'The page loaded before observation.' } });
+  const popup = createPopupModel(f.client); await popup.refresh(); popup.subscribe();
+  assert.equal(popup.domains.length, 100); assert.equal(popup.coverage.state, 'partial');
+  rows[0].cookieCount = 999;
+  f.state.operation = { state: 'running' }; await f.event('operation');
+  assert.equal(popup.domains[0].cookieCount, 1);
+  assert.equal(f.calls.filter(call => call.action === 'getSiteCookieDomains').length, 1);
+  await popup.loadMoreDomains(); assert.equal(popup.domains.length, 101); assert.equal(new Set(popup.domains.map(row => row.domain)).size, 101);
+  assert.equal(popup.nextPageToken, null);
+  assert.deepEqual(f.calls.filter(call => call.action === 'getSiteCookieDomains')[1].payload, { contextToken: 'captured-site', pageSize: 100, pageToken: 'page-2' });
+});
+test('UI-A16 UI-A17 UI-A18 popup choices retain full saved fields; new rule captures exact domain and current store', async () => {
+  const f = fixture(); const popup = createPopupModel(f.client); await popup.refresh();
+  popup.openSiteRule(popup.domains[0]); assert.equal(popup.ruleEditor.rule, null);
+  popup.selectSiteRule(0); assert.deepEqual(popup.ruleEditor.rule, rule);
+  popup.ruleEditor.rule.domain = 'draft.example'; assert.equal(f.state.configuration.rules[0].domain, 'example.com');
+  popup.selectSiteRule(null);
+  assert.deepEqual(popup.ruleEditor.rule, { domain: 'example.com', includeSubdomains: false, name: null, path: null, scope: { type: 'selected', storeRefs: ['work'] } });
+  assert.equal(popup.cancelSiteRule(), true); assert.equal(popup.ruleEditor, null);
+  assert.equal(f.calls.some(call => call.action === 'saveSiteRule'), false);
+});
+test('UI-A19 popup save submits once with captured revision, locks Cancel, then refreshes summary and domains', async () => {
+  const f = fixture(); const pending = deferred(); f.handlers.saveSiteRule = () => pending.promise;
+  const popup = createPopupModel(f.client); await popup.refresh(); popup.openSiteRule(popup.domains[0]); popup.selectSiteRule(null);
+  const edited = structuredClone(popup.ruleEditor.rule); edited.name = '';
+  const saving = popup.saveSiteRule(edited);
+  assert.equal(popup.cancelSiteRule(), false); assert.equal(popup.canSaveRule, false);
+  await popup.saveSiteRule(edited);
+  assert.equal(f.calls.filter(call => call.action === 'saveSiteRule').length, 1);
+  pending.resolve({ revision: 2 }); await saving;
+  const save = f.calls.find(call => call.action === 'saveSiteRule');
+  assert.equal(save.expectedRevision, 1); assert.equal(save.payload.ruleIndex, null); assert.equal(save.payload.rule.name, '');
+  assert.equal(popup.ruleEditor, null); assert.equal(f.calls.filter(call => call.action === 'getSiteCookieDomains').length, 2);
+});
+test('UI-A23 revision and validation failures preserve popup draft without retrying or rebasing', async () => {
+  for (const code of ['VALIDATION_FAILED', 'REVISION_CONFLICT', 'STALE_SITE_CONTEXT']) {
+    const f = fixture(); const popup = createPopupModel(f.client); await popup.refresh(); popup.openSiteRule(popup.domains[0]); popup.selectSiteRule(0);
+    f.handlers.saveSiteRule = () => { throw Object.assign(new Error('Review your rule.'), { code }); };
+    const edited = structuredClone(rule); edited.domain = 'draft.example';
+    await assert.rejects(popup.saveSiteRule(edited), { code });
+    assert.equal(popup.ruleEditor.rule.domain, 'draft.example'); assert.equal(popup.ruleEditor.revision, 1);
+    assert.equal(f.calls.filter(call => call.action === 'saveSiteRule').length, 1);
+    assert.equal(popup.canSaveRule, code === 'VALIDATION_FAILED');
+    if (code === 'STALE_SITE_CONTEXT') assert.deepEqual(popup.domains, []);
+  }
+});
+test('UI-A21 UI-A23 saved-setting events mark snapshot stale; navigation clears rows; refresh requires new target review', async () => {
+  const f = fixture(); const popup = createPopupModel(f.client); await popup.refresh(); popup.subscribe();
+  popup.openSiteRule(popup.domains[0]); popup.selectSiteRule(0); popup.ruleEditor.rule.name = 'unsaved';
+  f.state.revision = 2; await f.event('configuration');
+  assert.equal(popup.domains.length, 1); assert.equal(popup.domainStale, true); assert.equal(popup.canSaveRule, false);
+  assert.equal(popup.ruleEditor.rule.name, 'unsaved');
+  await f.event('site'); assert.deepEqual(popup.domains, []);
+  await popup.refresh(); assert.equal(popup.ruleEditor.rule.name, 'unsaved'); assert.equal(popup.ruleEditor.reviewRequired, true);
+  assert.equal(popup.canSaveRule, false); assert.equal(f.calls.filter(call => call.action === 'getSiteCookieDomains').length, 2);
+});
+test('UI-A25 empty, unavailable and failed domain inventory remain distinct from summary and coverage', async () => {
+  const f = fixture(); const popup = createPopupModel(f.client);
+  f.handlers.getSiteCookieDomains = () => ({ domains: [], revision: 1, nextPageToken: null, coverage: { state: 'partial', reason: 'Unobserved load.' } });
+  await popup.refresh(); assert.equal(popup.domainStatus, 'empty'); assert.equal(popup.site.status, 'full'); assert.equal(popup.coverage.state, 'partial');
+  f.handlers.getSiteCookieDomains = () => { throw Object.assign(new Error('No cookie access.'), { code: 'PERMISSION_REQUIRED' }); };
+  await popup.refresh(); assert.equal(popup.domainStatus, 'unavailable');
+  f.handlers.getSiteCookieDomains = () => { throw Object.assign(new Error('Storage failure.'), { code: 'INTERNAL_FAILURE' }); };
+  await popup.refresh(); assert.equal(popup.domainStatus, 'error');
+});
+test('Shared rule form preserves unrestricted and exact empty fields and requires selected stores', async () => {
+  const { editableRule } = await import('../../src/frontend/rule-form.js');
+  const fields = { domain: 'example.com', includeSubdomains: false, anyName: false, name: '', anyPath: false, path: '/', scope: 'selected', storeRefs: ['normal'] };
+  assert.equal(editableRule(fields).name, ''); assert.equal(editableRule({ ...fields, anyName: true }).name, null);
+  assert.throws(() => editableRule({ ...fields, storeRefs: [] }), /Select at least one store/);
+});
+test('UI-A20 a lost popup save reply preserves draft but requires saved-state refresh and target review before another mutation', async () => {
+  const f = fixture(); const popup = createPopupModel(f.client); await popup.refresh(); popup.openSiteRule(popup.domains[0]); popup.selectSiteRule(null);
+  f.handlers.saveSiteRule = () => { f.state.revision++; throw new Error('The reply was lost.'); };
+  await assert.rejects(popup.saveSiteRule(popup.ruleEditor.rule));
+  assert.equal(popup.canSaveRule, false); assert.ok(popup.ruleEditor.rule);
+  const reopened = createPopupModel(f.client); await reopened.refresh();
+  assert.equal(reopened.state.revision, 2); assert.equal(reopened.ruleEditor, null);
 });

@@ -48,7 +48,7 @@ This table records the latest answer for each interview question.
 ## Current Site amendment
 
 Decision date: 25 October 2026.
-Status: Approved, implementation pending.
+Status: Approved; implementation present; release verification incomplete.
 The user confirmed the complete design and requested PRD updates.
 Q38 through Q50 continue the package identifiers after the original interview.
 

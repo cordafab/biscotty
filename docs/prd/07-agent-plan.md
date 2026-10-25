@@ -2,7 +2,7 @@
 
 This plan defines implementation responsibilities.
 The PRD package itself contains no extension source code.
-The baseline extension is present; the Current Site cookie-domain additions are approved, implementation pending.
+The baseline extension is present; the Current Site cookie-domain additions are implemented; release verification remains incomplete.
 
 ## Shared preparation
 
@@ -99,7 +99,7 @@ Native integration cases remain required in M2.
 
 ## Current Site amendment work packages
 
-Status: Approved, implementation pending.
+Status: Approved; implementation present; release verification incomplete.
 The following packages extend existing ownership without assigning parallel edits to shared files.
 The [module interfaces](01-module-interfaces.md#current-site-action-contracts) control the new actions and reduced observation events.
 

@@ -1,6 +1,6 @@
 # PRD: Firefox backend and cookie burner
 
-Current Site cookie-domain list: Approved, implementation pending.
+Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
 Owner: Track B.
 Depends on the [module interfaces](01-module-interfaces.md) and [protection rules](02-protection-and-settings.md).
 All native Firefox access belongs to this backend implementation or the backend client.
@@ -74,7 +74,8 @@ The cookie-list action may enumerate a protected store when the user views its m
 
 ## Current-page cookie domains
 
-This section defines the approved Current Site additions, whose implementation is pending.
+This section defines the implemented Current Site additions.
+Release verification remains incomplete.
 The existing burner still enumerates its complete eligible store scope.
 The domain snapshot applies the narrower page and store selection defined here.
 Shared operations and payload fields belong in the [action contracts](01-module-interfaces.md#current-site-action-contracts).

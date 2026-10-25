@@ -57,6 +57,18 @@ export function getSiteProtection(target, configuration, storeRef) {
   });
   return { status: full ? 'full' : reasons.length ? 'partial' : 'none', reasons };
 }
+export function getDomainProtection(domain, configuration, storeRef) {
+  const target = { domain, includeSubdomains: false };
+  const reasons = [];
+  let full = configuration.protectedContainerRefs.includes(storeRef);
+  if (full) reasons.push(containerReason());
+  configuration.rules.forEach((rule, index) => {
+    if (!applies(rule, storeRef) || !domainMatch(domain, rule.domain, rule.includeSubdomains)) return;
+    reasons.push(reason(rule, index));
+    if (ruleCoversTarget(rule, target)) full = true;
+  });
+  return { status: full ? 'full' : reasons.length ? 'partial' : 'none', reasons, matchingRuleIndexes: reasons.filter(item => item.type === 'rule').map(item => item.ruleIndex) };
+}
 export function planQuickProtection(configuration, target, storeRef, enabled) {
   const candidate = clone(configuration);
   const status = getSiteProtection(target, configuration, storeRef);
