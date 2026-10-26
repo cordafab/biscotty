@@ -2,6 +2,7 @@
   "name": "biscotty",
   "version": "0.1.5",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "test": "node --test",

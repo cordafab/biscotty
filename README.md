@@ -84,3 +84,7 @@ An example explains a requirement; it does not replace that requirement.
 The product PRD controls product behavior.
 The module interfaces control shared data and action names.
 Record and correct a document conflict before dependent implementation.
+
+## License
+
+Licensed under the GNU General Public License version 3 (GPL-3.0-only). See [LICENSE](LICENSE) for the full text.
