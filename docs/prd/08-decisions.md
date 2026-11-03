@@ -101,3 +101,142 @@ The amendment adds bounded domain pages and context-bound rule saves without cha
 The shared contract specifies `webNavigation` alongside passive `webRequest` for navigation boundaries and document attribution.
 Coverage labels describe supported observation; they do not promise unrestricted visibility into Firefox activity.
 Observed-host association is a design inference, separately identified from verified API facts in [sources](SOURCES.md).
+
+## Version 0.1 publishing amendment
+
+Decision date: 25 October 2026.
+The user requested new publishing PRDs, version `0.1.2`, and implementation of the review fixes.
+This authorizes implementation and release preparation, without authorizing public publication.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D01 | Deliver `0.1.2` with compatible configuration and protocol formats. | [Publishing](09-publishing-0.1.md). |
+| PUB-D02 | Bound page observation and report partial coverage after omitted activity. | Observation. |
+| PUB-D03 | Reject mutation capacity before execution and retain bounded digest-based deduplication. | [Requests](11-bounded-requests.md). |
+| PUB-D04 | Explain all permissions and passive session metadata in the release material. | [Publishing](09-publishing-0.1.md). |
+| PUB-D05 | Preserve signed verification and release-owner gates as pending until evidence exists. | [Publishing](09-publishing-0.1.md). |
+
+Earlier unbounded observation and lifetime-long response retention are superseded by these limits.
+Existing protection, transfer, and operation-history decisions remain unchanged.
+
+## Version 0.1.3 patch
+
+Decision date: 25 October 2026.
+The user requested the startup storage recovery fix, a patch increment, and a commit of the edits.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D06 | Deliver `0.1.3` with startup storage recovery and the existing cleanup checks. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D06 supersedes the delivery version in PUB-D01.
+PROD-27, PUB-01, and PUB-A01 now identify `0.1.3`.
+The earlier `0.1.2` evidence remains historical.
+Signing and public publication remain release-owner actions.
+
+## Publication audit corrections
+
+Decision date: 25 October 2026.
+The user approved implementation of the proposed corrections for F1, F2, and F3.
+This authorization covers code, regression tests, and affected requirements.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| FIX-D01 | Compact exports and complete-candidate byte checks enforce the existing 2 MiB portable limit. | [Protection](02-protection-and-settings.md), [Transfer](05-configuration-transfer.md). |
+| FIX-D02 | Existing protection and native container reconciliation remain usable when portable size exceeds the limit. | [Protection](02-protection-and-settings.md). |
+| FIX-D03 | Imported references use explicit mapping decisions without inherited-object interpretation. | [Frontend](04-frontend.md), [Transfer](05-configuration-transfer.md). |
+| FIX-D04 | Fresh observed navigation recovers coverage after eviction without upgrading other documents. | Observation. |
+
+FIX-D01 adds a complete-export check to the earlier editable-data and import-text limits.
+Configuration, portable file, and protocol versions remain `1`.
+The initial correction approval did not request a version increment, commit, signing, or public publication.
+
+## Version 0.1.4 delivery
+
+Decision date: 25 October 2026.
+The user requested a patch increment, a commit, and a push of the completed audit corrections.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D07 | Deliver `0.1.4` with the publication audit corrections and regression evidence. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D07 supersedes the delivery version in PUB-D06.
+PROD-27, PUB-01, and PUB-A01 now identify `0.1.4`.
+The request authorizes Git delivery; signing and public extension publication remain separate release-owner actions.
+
+## Version 0.1.5 delivery
+
+Decision date: 25 October 2026.
+The user requested both confirmed lifecycle fixes, a patch increment, a commit, and a push.
+
+| Decision | Required result | Main specification |
+| --- | --- | --- |
+| PUB-D08 | Deliver `0.1.5` with verified observation restoration and terminal cancellation rejection. | [Publishing](09-publishing-0.1.md). |
+
+PUB-D08 supersedes the delivery version in PUB-D07.
+Restoration preserves matching committed documents and discards unverifiable or changed documents.
+Cancellation cannot change a terminal result during storage or marker cleanup.
+Configuration, portable file, protocol, permissions, and Firefox minimum versions remain unchanged.
+Git delivery is authorized; signed extension publication remains separate.
+
+## Frontend refresh — 3 November 2026
+
+The user selected the first HTML concept and authorized English UI implementation and corresponding PRD maintenance.
+The [frontend refresh PRD](12-frontend-refresh.md) records the implemented scope and acceptance cases.
+
+| Decision | Approved result |
+| --- | --- |
+| UX-D01 | Use the action-first concept with concise English controls. |
+| UX-D02 | Keep the current domain while selecting protection and cookie inventory in another available store. |
+| UX-D03 | Keep the active tab in its original container. |
+| UX-D04 | Open cookie groups and expandable metadata in a dialog with the main domain as its prominent heading. |
+| UX-D05 | Separate unpartitioned cookies from known third-party jars and explain possible shared use. |
+| UX-D06 | Use Cookies, Rules, Containers, Import / Export, and Status tabs while preserving Settings drafts. |
+| UX-D07 | Keep critical scope visible; place additional explanations behind circular info controls. |
+| UX-D08 | Retain global burner scope, preview, explicit confirmation, and the existing safety checks. |
+
+UX-D02 supersedes Q29 and Q34 only for selecting the target store.
+Their preservation of other scopes and inherited protection remains required.
+The change does not authorize cookie values, browser privacy-setting changes, or automatic deletion.
+
+The subsequent visual review requested larger status badges, smaller info circles, and a larger Settings gear.
+The [frontend refresh sizing refinement](12-frontend-refresh.md#visual-sizing-refinement) records the implemented dimensions.
+
+## Version 0.2.1 metadata increment
+
+Decision date: 3 November 2026.
+The user requested a patch increment after the frontend implementation and visual refinements.
+
+| Decision | Approved result |
+| --- | --- |
+| UX-D09 | Increment source and package metadata from `0.2.0` to `0.2.1` and regenerate the unsigned package. |
+
+The request does not change configuration or protocol versions.
+
+## Documentation cleanup — 3 November 2026
+
+The user authorized removal of superseded specifications, older audit evidence, standalone audit probes, and all frontend prototypes.
+The partition implementation proposal is retired because current contracts and code replace its guidance.
+OBS-01 through OBS-17 and OBS-A01 through OBS-A10 are retired; their identifiers remain reserved.
+OPT, IOBS, and ICTL identifiers in the removed proposal remain reserved.
+The [Current Site inventory amendment](partition-exceptions/02-current-site-inventory.md) replaces request-observation requirements.
+Historical decision rows describe earlier behavior; they do not reinstate retired observation requirements.
+Current tests, current audit evidence, and pending release obligations remain required.
+
+## Mozilla submission preparation — 3 November 2026
+
+The user requested security checks, stability verification, stale-document maintenance, and a distribution package.
+The public support contact is `me@fabriziocorda.com`, supplied by the user.
+
+| Decision | Required result |
+| --- | --- |
+| REL-D01 | Align current coverage and release guidance with the approved stored-cookie and selected-store amendments. |
+| REL-D02 | Explain identifying settings and unencrypted local exports beside Export and in the public privacy notice. |
+| REL-D03 | Prepare version 0.2.1 artifacts and evidence while retaining unresolved signed, platform, and accessibility gates. |
+
+QA-14 through QA-16, REL-10, and UI-53 now describe stored-cookie behavior instead of retired request observation.
+UI-A21 and UI-A22 retain their identifiers with current inventory expectations.
+The coverage contract uses `stored` and `partial`, matching the implemented backend.
+These corrections implement existing amendments; they do not restore request observation or weaken protection.
+The unsigned package remains distinct from a signed, publicly accepted release.
+
+The distribution archive also includes the repository MIT notice, which earlier packaging omitted.

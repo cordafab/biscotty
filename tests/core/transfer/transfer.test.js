@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { sizedRecord } from '../../harness/size-fixtures.js';
 import { parsePortableText, validatePortable, exportPortable, serializePortable, createImportPlan, resolveImportPlan } from '../../../src/core/transfer/index.js';
 const facts = Object.fromEntries(['example.com', 'example.net', 'other.test'].map(host => [host, { host, kind: 'dns', knownSuffix: false, baseDomain: host }]));
 const rule = (overrides = {}) => ({ domain: 'example.com', includeSubdomains: true, name: null, path: null, scope: { type: 'all' }, ...overrides });
@@ -9,6 +10,23 @@ const record = (overrides = {}) => ({ schemaVersion: 1, revision: 4, containerBi
 const source = (overrides = {}) => ({ format: 'biscotty-config', schemaVersion: 1, containers: [{ ref: 'a', name: 'Duplicate name', color: 'blue', icon: 'briefcase', state: 'active' }, { ref: 'b', name: 'Duplicate name', color: 'green', icon: 'fingerprint', state: 'inactive' }], rules: [], protectedContainerRefs: [], ...overrides });
 const mapping = [{ sourceRef: 'a', action: 'map', targetRef: 'work' }, { sourceRef: 'b', action: 'map', targetRef: 'personal' }];
 const makePlan = (overrides = {}) => createImportPlan({ source: source(), existing: record(), mode: 'merge', mappings: mapping, ...overrides });
+const exception = (overrides = {}) => ({ cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'example.net', topLevelIncludeSubdomains: false, scheme: 'https', name: '', path: null, scope: { type: 'selected', storeRefs: ['work'] }, enabled: false, ...overrides });
+
+test('partition exceptions round-trip and require explicit resolution when mapped scopes differ', () => {
+  const saved = record({ schemaVersion: 2, exceptions: [exception()] });
+  const portable = validatePortable(parsePortableText(serializePortable(saved)), facts);
+  assert.equal(portable.schemaVersion, 2);
+  assert.deepEqual(portable.exceptions[0].scope.storeRefs, ['c1']);
+  assert.equal(portable.exceptions[0].enabled, false);
+  const mapped = createImportPlan({ source: portable, existing: record({ schemaVersion: 2, exceptions: [exception({ scope: { type: 'selected', storeRefs: ['personal'] } })] }), mode: 'merge', mappings: [{ sourceRef: 'c1', action: 'map', targetRef: 'work' }, { sourceRef: 'c2', action: 'map', targetRef: 'personal' }] });
+  assert.equal(mapped.conflicts[0].type, 'exception');
+  const resolved = resolveImportPlan(mapped, [{ conflictId: mapped.conflicts[0].id, choice: 'combine' }]);
+  assert.deepEqual(resolved.candidate.exceptions[0].scope.storeRefs, ['personal', 'work']);
+  assert.equal(resolved.canCommit, true);
+  const excluded = createImportPlan({ source: portable, existing: saved, mode: 'replace', mappings: [{ sourceRef: 'c1', action: 'exclude' }, { sourceRef: 'c2', action: 'exclude' }] });
+  assert.equal(resolveImportPlan(excluded).candidate.exceptions.length, 0);
+  assert.ok(excluded.excluded.some(item => item.type === 'exception'));
+});
 
 test('XFER-A01 export/reimport preserves null and empty exact names and inactive references', () => {
   const saved = record({ containerBindings: [binding('private-local-reference', { cookieStoreId: null, state: 'inactive' })], protectedContainerRefs: ['private-local-reference'], rules: [rule({ name: '' }), rule({ domain: 'example.net', name: null, scope: { type: 'selected', storeRefs: ['normal', 'private-local-reference'] } })] });
@@ -110,4 +128,21 @@ test('CFG-A06 XFER-A09 10,000 rules validate in full; one excess rule or overlon
   assert.equal(validatePortable(source({ rules }), facts).rules.length, 10000);
   assert.throws(() => validatePortable(source({ rules: [...rules, rule({ name: 'extra' })] }), facts), { code: 'VALIDATION_FAILED' });
   assert.throws(() => validatePortable(source({ containers: [{ ...source().containers[0], name: 'x'.repeat(4097) }] }), facts), { code: 'VALIDATION_FAILED' });
+});
+
+test('XFER-A15 large supported configurations export compactly and round-trip all rules', () => {
+  const rules = Array.from({ length: 10000 }, (_, index) => rule({ name: `cookie-${index}`, scope: { type: 'selected', storeRefs: ['normal'] } }));
+  const exported = serializePortable(record({ rules }));
+  assert.ok(Buffer.byteLength(exported) <= 2 * 1024 * 1024);
+  assert.equal(exported.split('\n').length, 2);
+  assert.deepEqual(validatePortable(parsePortableText(exported), facts).rules, rules);
+});
+
+test('XFER-A15 portable UTF-8 size includes escaping, metadata, and the final newline', () => {
+  const limit = 2 * 1024 * 1024;
+  const exact = sizedRecord(limit);
+  const exported = serializePortable(exact);
+  assert.equal(Buffer.byteLength(exported), limit);
+  assert.deepEqual(validatePortable(parsePortableText(exported), facts).rules, exact.rules);
+  assert.throws(() => serializePortable(sizedRecord(limit + 1)), { code: 'VALIDATION_FAILED' });
 });

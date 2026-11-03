@@ -1,8 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '../../src/backend/client/client.js';
-import { createEditorModel, createPopupModel, createImportModel, siteStatus, operationTitle } from '../../src/frontend/models.js';
+import { createEditorModel, createPopupModel, createImportModel, createInventoryChoicesModel, siteStatus, operationTitle, groupCookieInventory } from '../../src/frontend/models.js';
+import { editableException } from '../../src/frontend/exception-form.js';
 const rule = { domain: 'example.com', includeSubdomains: true, name: null, path: null, scope: { type: 'selected', storeRefs: ['work'] } };
+test('cookie inventory groups known partitions by store and main site without inventing unknown associations', () => {
+  const rows = [
+    { storeRef: 'normal', domain: '.third.test', association: { kind: 'partitioned', topLevelSite: 'https://main.test', relationship: 'third-party' } },
+    { storeRef: 'work', domain: '.third.test', association: { kind: 'partitioned', topLevelSite: 'https://main.test', relationship: 'third-party' } },
+    { storeRef: 'normal', domain: '.main.test', association: { kind: 'unpartitioned', topLevelSite: null, relationship: null } },
+    { storeRef: 'normal', domain: 'other.test', association: { kind: 'unknown', topLevelSite: null, relationship: null } }
+  ];
+  const groups = groupCookieInventory(rows);
+  assert.equal(groups.length, 2); assert.equal(groups[0].sites[0].main, 'https://main.test');
+  assert.equal(groups[0].sites[0].jars[0].kind, 'third-party'); assert.equal(groups[0].sites[1].kind, 'unpartitioned');
+  assert.equal(groups[0].sites[2].main, null); assert.equal(groups[0].sites[2].jars[0].kind, 'unknown');
+  assert.equal(groups[1].storeRef, 'work');
+});
+test('partition exception form retains exact empty names and rejects an empty selected scope', () => {
+  const fields = { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.test', topLevelIncludeSubdomains: true, scheme: 'https', anyName: false, name: '', anyPath: true, path: '', scope: 'selected', storeRefs: ['work'], enabled: false };
+  const result = editableException(fields);
+  assert.equal(result.name, ''); assert.equal(result.path, null); assert.deepEqual(result.scope.storeRefs, ['work']); assert.equal(result.enabled, false);
+  assert.throws(() => editableException({ ...fields, storeRefs: [] }), /Select at least one store/);
+});
+test('inventory choices require explicit scope review and cannot commit a stale draft', async () => {
+  const editor = { draft: { rules: [], exceptions: [], protectedContainerRefs: [], inactiveDecisions: [] }, baseRevision: 2, canEdit: true, refresh: async () => {} };
+  let commits = 0;
+  const client = { planInventoryChoices: async ({ choices }) => choices[0].scopeAcknowledged ? { planToken: 'ready', conflicts: [] } : { conflicts: [{ code: 'SCOPE_REVIEW_REQUIRED', scope: { stores: ['work'] } }] }, commitInventoryChoices: async () => { commits++; } };
+  const inventory = createInventoryChoicesModel(client, editor);
+  inventory.stage(['row'], 'burnable'); await inventory.review();
+  await assert.rejects(inventory.commit(), /resolve every conflict/i);
+  inventory.acknowledgeScopes(); await inventory.review();
+  editor.draft.rules.push(structuredClone(rule));
+  await assert.rejects(inventory.commit(), /review the current choices/i);
+  await inventory.review(); assert.equal(inventory.plan.conflicts[0].code, 'SCOPE_REVIEW_REQUIRED');
+  inventory.acknowledgeScopes(); await inventory.review(); await inventory.commit();
+  assert.equal(commits, 1); assert.equal(inventory.dirty, false);
+});
 function fixture() {
   const state = { configuration: { rules: [structuredClone(rule)], protectedContainerRefs: [] }, configurationStatus: 'valid', revision: 1, stores: [{ ref: 'normal', name: 'Normal browsing', kind: 'normal', availability: 'available' }, { ref: 'work', name: 'Work', kind: 'container', availability: 'available' }], capabilities: { canBurn: true, canReadCookies: true, canChangeProtection: true }, operation: null };
   let event;
@@ -40,6 +74,40 @@ function fixture() {
   });
   return { client, state, calls, handlers, event: async (reason) => { event?.({ type: 'stateChanged', sequence: ++sequence, reason }); await new Promise(resolve => setTimeout(resolve, 0)); } };
 }
+
+test('XFER-A17 prototype-related mapping references retain every choice across pages and reset', async () => {
+  const f = fixture();
+  const editor = createEditorModel(f.client); await editor.refresh();
+  const importer = createImportModel(f.client, editor);
+  const refs = ['__proto__', 'constructor', 'toString', ...Array.from({ length: 22 }, (_, index) => `source-${index}`)];
+  f.handlers.inspectImport = () => ({ importHandle: 'inspection', containers: refs.map(ref => ({ ref, name: ref })) });
+  await importer.inspect('{}');
+  const choices = ['retain', 'exclude', 'map:work'];
+  for (let offset = 0; offset < choices.length; offset++) {
+    refs.forEach((ref, index) => importer.mappingChoices.set(ref, choices[(index + offset) % choices.length]));
+    importer.mappingPage = 1;
+    const mappings = importer.mappingDecisions();
+    assert.deepEqual(mappings, refs.map((sourceRef, index) => ({ sourceRef, action: ['retain', 'exclude', 'map'][(index + offset) % 3], ...((index + offset) % 3 === 2 ? { targetRef: 'work' } : {}) })));
+    await importer.planMappings(mappings);
+    assert.deepEqual(f.calls.filter(call => call.action === 'planImport').at(-1).payload.mappings, mappings);
+  }
+  await importer.inspect('{}', 'replace');
+  assert.equal(importer.mappingChoices.size, 0);
+  assert.equal(importer.mappingPage, 0);
+  assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+});
+
+test('XFER-A17 mapping decisions reject unknown actions, nonstrings, and unavailable destinations', async () => {
+  const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
+  const importer = createImportModel(f.client, editor); await importer.inspect('{}');
+  for (const invalid of [undefined, {}, 1, '', 'unknown', 'map:normal', 'map:missing']) {
+    importer.mappingChoices.set('source', invalid);
+    assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+  }
+  importer.mappingChoices.set('source', 'map:work');
+  editor.state.stores.find(store => store.ref === 'work').availability = 'inactive';
+  assert.throws(() => importer.mappingDecisions(), /Choose a valid mapping/);
+});
 test('UI-A09 draft changes do not call the backend; Cancel requires discard decision; Save commits once', async () => {
   const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
   editor.edit(draft => draft.rules[0].domain = 'changed.example');
@@ -56,6 +124,31 @@ test('UI-A10 UI-A31 concurrent saved changes preserve the draft and its original
   assert.equal(editor.stale, true); assert.equal(editor.baseRevision, 1); assert.equal(editor.draft.rules[0].name, 'draft');
   await assert.rejects(editor.save(), { code: 'REVISION_CONFLICT' });
   assert.equal(editor.dirty, true); assert.equal(editor.draft.rules[0].name, 'draft');
+});
+test('an open rule form cannot overwrite a different rule after a saved-state refresh', async () => {
+  const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
+  const formRevision = editor.state.revision;
+  f.state.configuration.rules.unshift({ ...structuredClone(rule), domain: 'new.example' });
+  f.state.revision++;
+  await editor.refresh();
+  assert.equal(editor.edit(draft => { draft.rules[0].domain = 'edited.example'; }, formRevision), false);
+  assert.deepEqual(editor.draft.rules.map(item => item.domain), ['new.example', 'example.com']);
+  assert.equal(editor.dirty, false);
+});
+test('Current Site exception prefill uses captured third-party domain, site and store and rejects stale edits', async () => {
+  const f = fixture();
+  f.handlers.getSiteCookieDomains = () => ({ domains: [{ domain: 'third.example', group: 'third-party', topLevelSite: 'https://main.example', cookieCount: 1, status: 'full', reasons: [], matchingRuleIndexes: [], domainToken: 'captured-domain' }], revision: f.state.revision, storeRef: 'work', coverage: { state: 'stored', reason: null }, nextPageToken: null });
+  f.handlers.saveSiteException = () => ({ revision: ++f.state.revision });
+  const popup = createPopupModel(f.client); await popup.refresh();
+  popup.openSiteException(popup.domains[0]);
+  const draft = structuredClone(popup.exceptionEditor.exception);
+  assert.equal(draft.cookieDomain, 'third.example'); assert.equal(draft.topLevelDomain, 'main.example'); assert.equal(draft.scheme, 'all'); assert.deepEqual(draft.scope, { type: 'selected', storeRefs: ['work'] });
+  await popup.saveSiteException(draft);
+  const sent = f.calls.find(call => call.action === 'saveSiteException');
+  assert.equal(sent.payload.domainToken, 'captured-domain'); assert.equal(sent.expectedRevision, 1);
+  popup.openSiteException(popup.domains[0]); popup.exceptionEditor.reviewRequired = true;
+  await popup.saveSiteException(draft);
+  assert.equal(f.calls.filter(call => call.action === 'saveSiteException').length, 1);
 });
 test('UI-A10 active operation blocks editor changes and import application', async () => {
   const f = fixture(); const editor = createEditorModel(f.client); await editor.refresh();
@@ -139,13 +232,15 @@ test('UI stale catalog changes discard an unconfirmed preview even when revision
 });
 test('Inactive reference draft review shows resulting scopes, retained destination protection, and required manual removals', async () => {
   const { reviewInactiveDecision } = await import('../../src/frontend/models.js');
-  const draft = { rules: [{ ...structuredClone(rule), scope: { type: 'selected', storeRefs: ['inactive', 'personal', 'work'] } }, { ...structuredClone(rule), scope: { type: 'selected', storeRefs: ['inactive'] } }], protectedContainerRefs: ['inactive', 'work'], inactiveDecisions: [{ ref: 'inactive', action: 'map', targetRef: 'work' }] };
+  const draft = { rules: [{ ...structuredClone(rule), scope: { type: 'selected', storeRefs: ['inactive', 'personal', 'work'] } }, { ...structuredClone(rule), scope: { type: 'selected', storeRefs: ['inactive'] } }], exceptions: [{ cookieDomain: 'third.test', topLevelDomain: 'main.test', enabled: true, scope: { type: 'selected', storeRefs: ['inactive'] } }], protectedContainerRefs: ['inactive', 'work'], inactiveDecisions: [{ ref: 'inactive', action: 'map', targetRef: 'work' }] };
   const mapped = reviewInactiveDecision(draft, draft.inactiveDecisions[0]);
   assert.deepEqual(mapped.affectedRules[0].resultingStoreRefs, ['personal', 'work']); assert.deepEqual(mapped.affectedRules[1].resultingStoreRefs, ['work']);
   assert.equal(mapped.transfersWholeContainerProtection, true); assert.equal(mapped.destinationAlreadyProtected, true); assert.equal(mapped.affectedRules[0].requiresEdit, false);
+  assert.deepEqual(mapped.affectedExceptions[0].resultingStoreRefs, ['work']); assert.equal(mapped.affectedExceptions[0].exception.enabled, true);
   draft.inactiveDecisions = [{ ref: 'inactive', action: 'remove' }];
   const removed = reviewInactiveDecision(draft, draft.inactiveDecisions[0]);
   assert.equal(removed.affectedRules.length, 2); assert.equal(removed.affectedRules[0].requiresEdit, true); assert.equal(removed.affectedRules[1].emptyScope, true); assert.equal(removed.removesWholeContainerProtection, true);
+  assert.equal(removed.affectedExceptions[0].requiresEdit, true); assert.equal(removed.affectedExceptions[0].emptyScope, true);
   assert.deepEqual(draft.rules[1].scope.storeRefs, ['inactive']);
 });
 

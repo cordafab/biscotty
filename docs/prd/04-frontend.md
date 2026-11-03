@@ -1,6 +1,9 @@
 # PRD: Frontend
 
+The approved [frontend refresh](12-frontend-refresh.md) supersedes popup placement, current-store-only controls, and the full-page section layout.
+
 Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
+The approved [Settings inventory](partition-exceptions/01-settings-inventory.md) and [Current Site inventory](partition-exceptions/02-current-site-inventory.md) supersede conflicting observation-based descriptions.
 Owner: Track C.
 Depends on the [module interfaces](01-module-interfaces.md).
 The frontend owns the GUI and calls backend actions.
@@ -11,7 +14,7 @@ It does not own Firefox access or authoritative policy decisions.
 - **UI-01.** The extension MUST provide a toolbar action with a packaged popup menu.
 - **UI-02.** Initial placement MUST request the main toolbar without preventing the user from moving the button.
 - **UI-03.** The menu MUST include Cookie burner, Settings, and the current-site protection view.
-- **UI-04.** The current-site view MUST identify the exact domain target and current store.
+- **UI-04.** The current-site view MUST identify the exact domain target and selected store.
 - **UI-05.** Its status MUST come from saved effective policy, not from the number of existing cookies.
 
 The menu must show one of four site states.
@@ -31,11 +34,11 @@ The interface must not claim that protection guarantees a login session.
 ## Quick protection
 
 - **UI-06.** A normal website shortcut MUST use Firefox's base domain and include its subdomains.
-- **UI-07.** A shortcut MUST affect only the captured current store.
+- **UI-07.** A shortcut MUST affect only the captured selected store.
 - **UI-08.** IP addresses and unknown-suffix local hostnames MUST use an exact-host shortcut.
 - **UI-09.** Bare known public suffixes MUST be rejected.
 - **UI-10.** Non-HTTP/HTTPS pages and missing tab context MUST show an unavailable site control.
-- **UI-11.** The backend MUST revalidate the captured tab, host, store, and revision before a shortcut change.
+- **UI-11.** The backend MUST revalidate the captured tab, host, selected store, and revision before a shortcut change.
 - **UI-12.** A stale context MUST require refresh before the user confirms another protection change.
 
 For example, `shop.example.com` in Work offers “Protect example.com and its subdomains in Work.”
@@ -62,7 +65,8 @@ The editor remains available to change All stores rules or whole-container prote
 
 This feature uses `getSiteCookieDomains` and `saveSiteRule` through the public backend client.
 The [shared action contracts](01-module-interfaces.md#current-site-action-contracts) define the authoritative inputs, views, errors, and token checks.
-The existing summary and quick-protection controls remain above the list.
+The summary and quick-protection controls remain in the main popup.
+View cookies opens the grouped inventory in a separate dialog.
 The summary status does not summarize protection across every listed third-party domain.
 
 - **UI-40.** Each domain row MUST show its canonical cookie domain, stored-cookie count, and pencil control.
@@ -77,8 +81,8 @@ The summary status does not summarize protection across every listed third-party
 - **UI-49.** A successful Save MUST refresh the site summary and domain snapshot.
 - **UI-50.** Cancel or popup closure before Save MUST discard the unsaved popup form.
 - **UI-51.** Popup opening and explicit Refresh MUST capture a new domain snapshot.
-- **UI-52.** Requests and cookie changes within the same page MUST NOT refresh the displayed snapshot automatically.
-- **UI-53.** Partial observation coverage MUST show its reason and manual reload guidance.
+- **UI-52.** Cookie changes within the same page MUST NOT refresh the displayed snapshot automatically.
+- **UI-53.** Partial stored-cookie coverage MUST explain unknown associations without promising that a page reload will resolve them.
 - **UI-54.** The domain list MUST distinguish loading, empty, error, and unavailable states.
 - **UI-55.** Validation and revision errors MUST preserve the open popup form for review.
 - **UI-56.** A changed page context MUST disable saving until the user refreshes and reviews the target again.
@@ -193,6 +197,12 @@ Do not preselect a destructive resolution or hide unresolved entries.
 The final preview includes removed protection and excluded imported entries.
 Replace requires an explicit acknowledgment of replaced settings.
 
+## Export privacy disclosure
+
+Settings explains that exported settings can contain identifying domains, cookie names, paths, and container labels.
+Exports use unencrypted local JSON and exclude cookie values.
+The notice appears beside Export saved settings and is associated with that control.
+
 ## Presentation quality
 
 - **UI-34.** Every action MUST be available through a keyboard with visible focus.
@@ -222,17 +232,22 @@ Replace requires an explicit acknowledgment of replaced settings.
 | UI-A14 | Current Site retains its summary and shows one domain, stored-cookie count, and pencil per grouped row. |
 | UI-A15 | Load more reaches every alphabetically ordered snapshot row without duplicates; long domains keep pencils accessible. |
 | UI-A16 | A pencil opens the popup modal with applicable rules and Add rule; whole-container protection remains explained. |
-| UI-A17 | A new rule uses the exact row domain, every name and path, and only the current store. |
+| UI-A17 | A new rule uses the exact row domain, every name and path, and only the selected store. |
 | UI-A18 | Existing rules expose all fields and explain wider domain and store effects before Save. |
 | UI-A19 | Save commits once, closes the modal, and refreshes results; Cancel and closure before Save change no protection. |
 | UI-A20 | Popup reopening reconciles an accepted save whose reply was lost; the Settings draft workflow remains unchanged. |
-| UI-A21 | Opening, Refresh, and successful Save renew snapshots; later observed hosts and cookie changes do not rearrange rows. |
-| UI-A22 | Partial coverage shows its reason and reload guidance; Refresh cannot claim to recover unobserved past activity. |
+| UI-A21 | Opening, Refresh, and successful Save renew snapshots; later cookie changes do not rearrange rows. |
+| UI-A22 | Partial coverage explains unknown associations; Refresh cannot claim verified cookie use or complete browser access. |
 | UI-A23 | Revision errors preserve drafts; changed navigation clears rows and requires target review; an active burn blocks Save. |
 | UI-A24 | Keyboard, screen-reader, zoom, contrast, and long-domain checks cover pencils, paging, modal fields, and error states. |
 | UI-A25 | Loading, empty, unavailable, and failed states remain distinguishable; stored-cookie counts never claim verified cookie use. |
+| UI-A26 | Portable size excess explains the limit and permits editing valid saved protection before a fitting reduction. |
+| UI-A27 | Prototype-related imported references retain explicit choices across mapping pages and reset when the import is restarted. |
 
 ## Current Site completion evidence
+
+- **UI-62.** Settings MUST explain portable size excess while retaining editing access to otherwise valid protection.
+- **UI-63.** Import mapping choices MUST treat portable references as data without interpreting inherited object properties.
 
 Track C supplies UI-A14 through UI-A25 through the public backend client.
 Fixtures cover partial observation coverage, multiple rules, broader scopes, container protection, and stale page contexts.

@@ -24,7 +24,7 @@ export function createTestAdapter(options = {}) {
     emitSiteActivity(event) { siteListeners.forEach(fn => fn(clone(event))); },
     onSiteActivity(fn) { siteListeners.push(fn); return () => { const index = siteListeners.indexOf(fn); if (index >= 0) siteListeners.splice(index, 1); }; },
     async readSiteObservations() { if (faults.observationRead) throw new Error('observation read'); return clone(observations); },
-    async writeSiteObservation(tabId, value) { if (faults.observationWrite) throw new Error('observation write'); observations[tabId] = clone(value); },
+    async writeSiteObservations(value) { if (faults.observationWrite) throw new Error('observation write'); for (const key of Object.keys(observations)) delete observations[key]; Object.assign(observations, clone(value)); },
     async clearSiteObservation(tabId) { if (faults.observationWrite) throw new Error('observation clear'); if (tabId === undefined) { for (const key of Object.keys(observations)) delete observations[key]; } else delete observations[tabId]; },
     async readConfigurationRecord() { if (faults.read) throw new Error('read'); return clone(record); },
     async writeConfigurationRecord(value) { if (faults.write) throw new Error('write'); record = clone(value); },
@@ -37,6 +37,7 @@ export function createTestAdapter(options = {}) {
     async getCatalog() { if (faults.catalog) throw new Error('catalog'); return clone(catalog); },
     async getAccess() { return clone(access); },
     async getActiveTab() { return clone(tab); },
+    async getDocumentId() { return options.documentId ?? null; },
     async classifyHost(host) {
       return { host, kind: host.startsWith('[') ? 'ipv6' : /^\d+\.\d+\.\d+\.\d+$/.test(host) ? 'ipv4' : 'dns', knownSuffix: ['com','net','co.uk','github.io'].includes(host), baseDomain: host.endsWith('.com') || host.endsWith('.net') ? host.split('.').slice(-2).join('.') : null };
     },

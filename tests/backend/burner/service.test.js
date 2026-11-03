@@ -12,6 +12,53 @@ async function setup(options) {
   return { adapter, app, request, state };
 }
 const removes = adapter => adapter.calls.filter(call => call.type === 'remove');
+test('preview yields during a scan of protected cookies', async () => {
+  const s = await setup();
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule()];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  let scanned = 0, scannedWhenTimerRan = null;
+  const rows = Array.from({ length: 250 }, () => {
+    const row = cookie();
+    Object.defineProperty(row, 'domain', { get() {
+      if (++scanned === 1) setTimeout(() => { scannedWhenTimerRan = scanned; }, 0);
+      return 'example.com';
+    } });
+    return row;
+  });
+  s.adapter.listCookies = async storeId => storeId === 'firefox-default' ? rows : [];
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true);
+  assert.equal(preview.data.ruleProtected, rows.length);
+  assert.ok(scannedWhenTimerRan > 0 && scannedWhenTimerRan < rows.length);
+});
+for (const boundary of ['result', 'marker']) test(`BURN-A18 cancellation during terminal ${boundary} persistence preserves a dismissible result`, async () => {
+  const s = await setup({ cookies: { 'firefox-default': [cookie()] } });
+  let release, enter;
+  const gate = new Promise(resolve => { release = resolve; });
+  const entered = new Promise(resolve => { enter = resolve; });
+  const method = boundary === 'result' ? 'writeCurrentOperation' : 'clearMarker';
+  const original = s.adapter[method];
+  s.adapter[method] = async value => {
+    if (boundary === 'marker' || value.state === 'completed') { enter(); await gate; }
+    return original(value);
+  };
+  const preview = await s.request('previewBurn');
+  const started = await s.request('startBurn', { previewToken: preview.data.previewToken });
+  await entered;
+  const pendingCancellation = s.request('cancelBurn', { operationId: started.data.operationId });
+  await new Promise(resolve => setImmediate(resolve));
+  release();
+  const cancellation = await pendingCancellation;
+  await s.app.burner.waitForIdle();
+  assert.equal(cancellation.ok, false);
+  assert.equal(cancellation.error.code, 'INVALID_REQUEST');
+  assert.equal(s.app.burner.view().state, 'completed');
+  assert.equal(s.adapter.operation.state, 'completed');
+  assert.equal(s.adapter.marker, null);
+  assert.equal((await s.request('dismissOperation', { operationId: started.data.operationId })).ok, true);
+  assert.equal((await s.state()).data.operation, null);
+});
 test('BURN-A01/A02/A03 all supported stores and partitions; protected containers skipped', async () => {
   const s = await setup({ cookies: { 'firefox-default': [cookie(), cookie({ name: 'p', partitionKey: { topLevelSite: 'https://first.test', hasCrossSiteAncestor: true }, firstPartyDomain: 'first.test', session: false })], 'firefox-container-4': [cookie()], 'firefox-container-9': [cookie()] } });
   const { record, catalogGeneration } = s.app.configuration.readConfiguration();
@@ -71,6 +118,42 @@ test('BURN-A10/A11 interruption, marker failures, cleanup failure prevent new ex
   const t = await setup({ cookies: { 'firefox-default': [cookie()] } }); const q = await t.request('previewBurn'); t.adapter.faults.cleanup = true;
   await t.request('startBurn', { previewToken: q.data.previewToken }); await t.app.burner.waitForIdle(); assert.equal(t.app.burner.isLocked(), true); assert.equal(t.app.burner.view().reason, 'CLEANUP_FAILED');
 });
+for (const startupMethod of ['readMarker', 'readCurrentOperation', 'writeCurrentOperation']) {
+  test(`BURN-A10/A11 startup ${startupMethod} failure permits dismissal only after confirmed cleanup`, async () => {
+    const adapter = createTestAdapter({ marker: 'old-operation', cookies: { 'firefox-default': [cookie()] } });
+    const failStorage = async () => { throw new Error('synthetic storage failure'); };
+    const original = adapter[startupMethod];
+    adapter[startupMethod] = failStorage;
+    const app = createApplication(adapter, { extensionId: sender.id, baseURL: 'moz-extension://test/' });
+    await app.ready();
+    adapter[startupMethod] = original;
+    const request = (action, payload = {}) => app.dispatch(envelope(action, payload, app.configuration.view().revision), sender);
+    const initial = (await request('getState')).data;
+    assert.equal(initial.operation.state, 'interrupted');
+    assert.equal(initial.operation.reason, 'STORAGE_FAILED');
+    assert.equal(initial.capabilities.canBurn, false);
+    assert.equal(initial.capabilities.canChangeProtection, false);
+    for (const cleanupMethod of ['clearMarker', 'clearCurrentOperation']) {
+      const cleanup = adapter[cleanupMethod];
+      adapter[cleanupMethod] = failStorage;
+      const failed = await request('dismissOperation', { operationId: initial.operation.id });
+      assert.equal(failed.error.code, 'INTERNAL_FAILURE');
+      assert.equal(app.burner.isLocked(), true);
+      assert.equal((await request('getState')).data.operation.id, initial.operation.id);
+      assert.equal((await request('previewBurn')).error.code, 'OPERATION_ACTIVE');
+      adapter[cleanupMethod] = cleanup;
+    }
+    assert.equal((await request('dismissOperation', { operationId: initial.operation.id })).ok, true);
+    const recovered = (await request('getState')).data;
+    assert.equal(recovered.operation, null);
+    assert.equal(recovered.capabilities.canBurn, true);
+    assert.equal(recovered.capabilities.canChangeProtection, true);
+    assert.equal(adapter.marker, null);
+    assert.equal(adapter.operation, null);
+    assert.equal((await request('previewBurn')).ok, true);
+    assert.equal(removes(adapter).length, 0);
+  });
+}
 test('BURN-A14 dismiss removes the single current result; no local history', async () => {
   const s = await setup({ cookies: { 'firefox-default': [cookie()] } }); const p = await s.request('previewBurn');
   await s.request('startBurn', { previewToken: p.data.previewToken }); await s.app.burner.waitForIdle();
@@ -124,4 +207,46 @@ test('BURN-A06 same-revision native changes cannot reuse a preview after state r
   changed.rules = [rule()]; s.adapter.setRecord(changed); await s.state();
   const result = await s.request('startBurn', { previewToken: preview.data.previewToken });
   assert.equal(result.ok, false); assert.equal(removes(s.adapter).length, 0);
+});
+
+test('PEX-A01/A07 preview permits proven exception and skips ambiguous protected parent', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [
+    cookie({ name: 'exact', partitionKey: { topLevelSite: 'https://other.com' } }),
+    cookie({ name: 'child', domain: 'shop.example.com', partitionKey: { topLevelSite: 'https://other.com' } }),
+    cookie({ name: 'plain' })
+  ] } });
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule({ includeSubdomains: true })];
+  record.exceptions = [
+    { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: 'exact', path: null, scope: { type: 'all' }, enabled: true },
+    { cookieDomain: 'shop.example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: 'child', path: null, scope: { type: 'all' }, enabled: true }
+  ];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true, JSON.stringify(preview));
+  assert.equal(preview.data.eligibleAttempts, 1);
+  assert.equal(preview.data.exceptionEligible, 1);
+  assert.equal(preview.data.exceptionSafetySkips, 1);
+  assert.deepEqual(preview.data.exceptionExamples[0].overriddenRuleIndexes, [0]);
+  assert.equal(preview.data.ruleProtected, 1);
+  await s.request('startBurn', { previewToken: preview.data.previewToken });
+  await s.app.burner.waitForIdle();
+  assert.deepEqual(removes(s.adapter).map(item => item.name), ['exact']);
+});
+
+test('PEX-A04 missing native domain facts preserve allow-rule protection', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [cookie({ partitionKey: { topLevelSite: 'https://other.com' } })] } });
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule()];
+  record.exceptions = [{ cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true }];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  const classify = s.adapter.classifyHost;
+  const list = s.adapter.listCookies;
+  let listingStarted = false;
+  s.adapter.listCookies = async storeId => { listingStarted = true; return list(storeId); };
+  s.adapter.classifyHost = async host => { if (listingStarted && host === 'other.com') throw new Error('unavailable'); return classify(host); };
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true, JSON.stringify(preview));
+  assert.equal(preview.data.eligibleAttempts, 0);
+  assert.equal(preview.data.ruleProtected, 1);
 });

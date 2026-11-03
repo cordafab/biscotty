@@ -1,0 +1,11 @@
+{
+  "markdownFiles": 31,
+  "localLinksAndAnchors": 270,
+  "jsonExamples": 1,
+  "requirementDefinitions": 442,
+  "acceptanceDefinitions": 149,
+  "errors": [],
+  "newArtifactProseParagraphsScreened": 45,
+  "gitDiffWhitespacePassed": true,
+  "languageAssurance": "Mechanical screening only; no exhaustive ASD-STE100 dictionary or grammatical-role certification."
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "version": "153.0",
+    "sha256": "2f9b5a20e546e7e79e4182f8fe10353a3e251635963ab3f6d399a3f290adeb96",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/153.0/mac/en-US/Firefox%20153.0.dmg",
+    "verifiedAgainst": "https://archive.mozilla.org/pub/firefox/releases/153.0/SHA256SUMS"
+  },
+  {
+    "version": "153.6.0esr",
+    "sha256": "e61f4490ae4c73ba8a98fd3c5682f40c3c3c3089e307018d4341583f605f6828",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/153.6.0esr/mac/en-US/Firefox%20153.6.0esr.dmg",
+    "verifiedAgainst": "https://archive.mozilla.org/pub/firefox/releases/153.6.0esr/SHA256SUMS"
+  }
+]

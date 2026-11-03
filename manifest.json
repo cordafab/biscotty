@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Biscotty",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Manually burn eligible cookies while protecting selected sites and containers.",
   "browser_specific_settings": {
     "gecko": {
@@ -10,7 +10,7 @@
       "data_collection_permissions": { "required": ["none"] }
     }
   },
-  "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix", "webRequest", "webNavigation"],
+  "permissions": ["cookies", "storage", "contextualIdentities", "publicSuffix", "webNavigation"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "incognito": "not_allowed",
   "background": { "scripts": ["src/backend/background.js"], "type": "module" },

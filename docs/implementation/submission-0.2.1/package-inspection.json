@@ -1,0 +1,15 @@
+{
+  "version": "0.2.1",
+  "archive": "biscotty-0.2.1.zip",
+  "bytes": 83145,
+  "sha256": "5ebb38e7f26d8cc2bbb7c51076487b3ddbed70c9a945ee8070f82cfe5678bdf2",
+  "entries": 32,
+  "crcValid": true,
+  "allEntriesEqualCurrentProductionSource": true,
+  "onlyAllowlistedProductionFiles": true,
+  "absoluteUserPathsFound": false,
+  "credentialPatternsFound": false,
+  "noExternalProjectDependencies": true,
+  "privacyManifestChecked": true,
+  "mitLicenseIncluded": true
+}

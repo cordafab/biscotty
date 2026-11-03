@@ -1,6 +1,7 @@
 // Loaded only by the disposable native test package; never shipped.
 import { client } from '../../src/backend/client/native.js';
 import { createFirefoxAdapter } from '../../src/backend/firefox/adapter.js';
+import { createObservations } from '../../src/backend/firefox/observations.js';
 import { selectorFor, nativeSelector } from '../../src/backend/burner/selectors.js';
 import { importedText, fixturePort } from './input.js';
 const results = [];
@@ -12,7 +13,7 @@ async function check(name, task) {
 }
 const adapter = createFirefoxAdapter();
 const state = () => client.getState();
-let work, personal;
+let work, personal, verifyObservationCleanup;
 async function save(rules = [], protectedContainerRefs = []) {
   const current = await state();
   return client.saveConfiguration({ rules, protectedContainerRefs, inactiveDecisions: [] }, current.revision);
@@ -23,8 +24,11 @@ async function burn() {
   if (!preview.eligibleAttempts) return { preview, operation: null };
   await client.startBurn({ previewToken: preview.previewToken }, current.revision);
   for (let i = 0; i < 1000; i++) {
-    const operation = (await state()).operation;
-    if (!['running','cancel_requested'].includes(operation.state)) return { preview, operation };
+    const next = await state();
+    const operation = next.operation;
+    // A terminal view is persisted before marker cleanup releases the lock.
+    // Wait for that cleanup before starting the next scenario's settings edit.
+    if (operation.state === 'interrupted' || (!['running','cancel_requested'].includes(operation.state) && next.capabilities.canBurn)) return { preview, operation };
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   throw new Error('Burn did not finish');
@@ -38,6 +42,25 @@ try {
     assert(current.configuration.rules.length === 0);
     assert(!JSON.stringify(current).includes('cookieStoreId'));
   });
+  await check('UX native section tabs preserve mounted drafts and keyboard selection', async () => {
+    for (let i = 0; i < 200 && document.getElementById('draft-status').textContent.includes('Loading'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+    const rules = document.getElementById('tab-rules');
+    rules.click();
+    assert(!document.getElementById('panel-rules').hidden);
+    document.getElementById('add-rule').click();
+    document.getElementById('rule-domain').value = 'ui-draft.example.com';
+    document.querySelector('#rule-form button[type=submit]').click();
+    assert(document.getElementById('draft-status').textContent.includes('Unsaved'));
+    rules.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert(document.getElementById('tab-containers').getAttribute('aria-selected') === 'true');
+    document.getElementById('tab-rules').click();
+    assert(document.getElementById('rules-list').textContent.includes('ui-draft.example.com'));
+    document.getElementById('cancel').click();
+    document.getElementById('confirm-discard').click();
+    for (let i = 0; i < 200 && !document.getElementById('cancel').disabled; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert(!(await state()).configuration.rules.some(rule => rule.domain === 'ui-draft.example.com'));
+    document.getElementById('tab-cookies').click();
+  });
   await check('Native domain adapter: public suffix, IDN, IP and unknown suffix', async () => {
     assert((await adapter.classifyHost('shop.example.co.uk')).baseDomain === 'example.co.uk');
     assert((await adapter.classifyHost('co.uk')).knownSuffix);
@@ -45,6 +68,14 @@ try {
     assert((await adapter.classifyHost('[::1]')).kind === 'ipv6');
     assert((await adapter.classifyHost('xn--bcher-kva.de')).baseDomain === 'xn--bcher-kva.de');
   });
+  verifyObservationCleanup = async () => {
+    const key = 'biscotty.siteObservations';
+    await browser.storage.session.set({ [key]: { 1: { hosts: ['old.example'] } } });
+    const tracker = createObservations({ adapter: { ...adapter, onSiteActivity() {} } });
+    await tracker.ready;
+    assert((await browser.storage.session.get(key))[key] === undefined, 'Legacy observations were not cleared');
+    assert(!browser.runtime.getManifest().permissions.includes('webRequest'), 'Request permission remains');
+  };
   await check('SITE native redirects, nested frames, domain snapshots and same-host reload invalidate popup saves', async () => {
     const topURL = `http://localhost:${fixturePort}`;
     await setCookie({ url: `${topURL}/`, name: 'observed-top', value: 'synthetic' });
@@ -60,26 +91,29 @@ try {
       assert(site.contextToken, JSON.stringify(site));
       const snapshot = await client.getSiteCookieDomains({ contextToken: site.contextToken });
       assert(snapshot.domains.some(row => row.domain === 'localhost'), JSON.stringify(snapshot));
-      assert(snapshot.domains.some(row => row.domain === '127.0.0.1'), JSON.stringify(snapshot));
+      assert(!snapshot.domains.some(row => row.domain === '127.0.0.1'), 'Unpartitioned third-party cookie was attributed to this site');
       const popup = document.createElement('iframe');
       popup.src = browser.runtime.getURL('src/frontend/popup.html');
       popup.style.width = '380px'; popup.style.height = '560px';
       document.body.prepend(popup);
       try {
-        for (let i = 0; i < 200 && !popup.contentDocument?.querySelector('[aria-label="Edit protection for localhost"]'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+        for (let i = 0; i < 200 && popup.contentDocument?.getElementById('view-cookies')?.disabled !== false; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        popup.contentDocument.getElementById('view-cookies').click();
+        for (let i = 0; i < 200 && popup.contentDocument?.querySelector('[aria-label="Edit protection for localhost"]')?.disabled !== false; i++) await new Promise(resolve => setTimeout(resolve, 20));
         const ui = popup.contentDocument;
         const pencil = ui.querySelector('[aria-label="Edit protection for localhost"]');
-        assert(pencil, 'Native popup did not render the observed domain.');
+        assert(pencil, 'Native popup did not render the stored-cookie domain.');
+        pencil.closest('details').open = true;
         pencil.click();
-        assert(ui.querySelector('dialog').open, 'Pencil did not open the native dialog.');
+        assert(ui.querySelector('#site-rule-dialog').open, 'Pencil did not open the native dialog.');
         assert(ui.querySelector('#site-rule-fields input').value === 'localhost');
         ui.querySelector('#cancel-site-rule').click();
-        assert(!ui.querySelector('dialog').open, 'Cancel did not close the dialog.');
+        assert(!ui.querySelector('#site-rule-dialog').open, 'Cancel did not close the dialog.');
         assert(!(await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Cancel changed saved rules.');
-        pencil.click();
+        ui.querySelector('[aria-label="Edit protection for localhost"]').click();
         ui.querySelector('#save-site-rule').click();
-        for (let i = 0; i < 200 && ui.querySelector('dialog').open; i++) await new Promise(resolve => setTimeout(resolve, 20));
-        assert(!ui.querySelector('dialog').open, 'Successful Save did not close the dialog.');
+        for (let i = 0; i < 200 && ui.querySelector('#site-rule-dialog').open; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        assert(!ui.querySelector('#site-rule-dialog').open, 'Successful Save did not close the dialog.');
         assert((await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Popup Save did not commit the new rule.');
       } finally { popup.remove(); }
       const refreshed = await client.getSiteContext({ windowId: tab.windowId });
@@ -128,6 +162,27 @@ try {
     const result = await burn(); assert(result.operation.state === 'completed', JSON.stringify(result));
     assert(result.operation.attemptedCalls === result.operation.plannedAttempts);
     assert(!(await adapter.listCookies('firefox-default')).some(cookie => ['partitioned','plain'].includes(cookie.name)));
+  });
+  await check('PEX native exception burns only the selected partition and store', async () => {
+    const current = await state();
+    const rule = { domain: 'example.net', includeSubdomains: false, name: 'pex-native', path: '/', scope: { type: 'all' } };
+    const exception = { cookieDomain: 'example.net', cookieIncludeSubdomains: false, topLevelDomain: 'example.org', topLevelIncludeSubdomains: false, scheme: 'https', name: 'pex-native', path: '/', scope: { type: 'selected', storeRefs: ['normal'] }, enabled: true };
+    await client.saveConfiguration({ rules: [rule], exceptions: [exception], protectedContainerRefs: [], inactiveDecisions: [] }, current.revision);
+    try {
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true, partitionKey: { topLevelSite: 'https://example.org' } });
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true });
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true, partitionKey: { topLevelSite: 'https://example.org' }, storeId: work.cookieStoreId });
+      const result = await burn();
+      assert(result.preview.exceptionEligible >= 1, JSON.stringify(result.preview));
+      assert(result.operation?.state === 'completed', JSON.stringify(result.operation));
+      const normal = (await adapter.listCookies('firefox-default')).filter(cookie => cookie.name === 'pex-native');
+      const workCookies = (await adapter.listCookies(work.cookieStoreId)).filter(cookie => cookie.name === 'pex-native');
+      assert(normal.length === 1 && !normal[0].partitionKey, JSON.stringify(normal));
+      assert(workCookies.length === 1 && workCookies[0].partitionKey, JSON.stringify(workCookies));
+    } finally {
+      const latest = await state();
+      await client.saveConfiguration({ rules: [], exceptions: [], protectedContainerRefs: [], inactiveDecisions: [] }, latest.revision);
+    }
   });
   await check('Encoded paths are conservatively skipped; IDN and IPv6 selectors preserve hosts', async () => {
     const base = { domain: 'example.com', name: 'encoded', path: '/a%2Fb', firstPartyDomain: '', partitionKey: null, secure: true };
@@ -213,6 +268,52 @@ await check('Native settings dialog preserves unsaved drafts and confirms Save a
   for (let i = 0; i < 100; i++) { if ((await state()).configuration.rules.some(rule => rule.domain === 'ui.example.org')) return; await new Promise(resolve => setTimeout(resolve, 10)); }
   throw new Error('Settings Save did not commit');
 });
+await check('XFER-A17 native import maps a prototype-named reference and reaches its final preview', async () => {
+  const wait = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(document.getElementById('messages').textContent || 'Import UI did not advance'); };
+  const findButton = text => [...document.querySelectorAll('button')].find(button => button.textContent === text);
+  const before = (await state()).revision;
+  document.getElementById('start-import').click();
+  const input = document.querySelector('#import-workflow input[type="file"]');
+  assert(input, 'Import file control is missing.');
+  const refs = ['__proto__', 'constructor', 'toString', ...Array.from({ length: 20 }, (_, index) => `source-${index}`)];
+  const portable = { format: 'biscotty-config', schemaVersion: 1, containers: refs.map(ref => ({ ref, name: `Imported ${ref}`, color: 'blue', icon: 'briefcase', state: 'inactive' })), protectedContainerRefs: [], rules: [] };
+  const files = new DataTransfer();
+  files.items.add(new File([JSON.stringify(portable)], 'prototype-reference.json', { type: 'application/json' }));
+  input.files = files.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  try {
+    await wait(() => document.getElementById('mapping-__proto__') && !document.getElementById('mapping-__proto__').disabled);
+    for (let page = 0; page < 2; page++) {
+      for (const select of document.querySelectorAll('#import-workflow select[id^="mapping-"]')) {
+        select.value = 'retain'; select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (page === 0) findButton('Next containers').click();
+    }
+    findButton('Build import plan').click();
+    await wait(() => findButton('Apply configuration'));
+    assert((await state()).revision === before, 'Mapping changed saved protection before Apply.');
+    findButton('Change mode or mappings').click();
+    await wait(() => document.getElementById('mapping-__proto__') && !document.getElementById('mapping-__proto__').disabled);
+    assert(document.getElementById('mapping-__proto__').value === '', 'Changing mappings did not reset the choices.');
+  } finally { findButton('Cancel import')?.click(); }
+});
+await check('CFG-A10 native Settings explains legacy portable excess and permits a fitting reduction', async () => {
+  const key = 'biscotty.configuration';
+  const original = (await browser.storage.local.get(key))[key];
+  const inactive = Array.from({ length: 520 }, (_, index) => ({ ref: `legacy-${index}`, cookieStoreId: null, name: 'x'.repeat(4096), color: 'blue', icon: 'briefcase', state: 'inactive' }));
+  await browser.storage.local.set({ [key]: { ...original, containerBindings: [...original.containerBindings, ...inactive] } });
+  const over = await state();
+  assert(over.configurationStatus === 'valid' && over.capabilities.canChangeProtection && !over.exportStatus.canExport, JSON.stringify(over.exportStatus));
+  for (let i = 0; i < 200 && !document.getElementById('availability').textContent.includes('the limit is 2 MiB'); i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert(document.getElementById('availability').textContent.includes('the limit is 2 MiB'), 'Settings did not explain the portable limit.');
+  assert(document.getElementById('export').disabled && !document.getElementById('add-rule').disabled, 'Portable excess disabled editing or allowed an oversized export.');
+  await client.saveConfiguration({ rules: original.rules, protectedContainerRefs: original.protectedContainerRefs, inactiveDecisions: inactive.map(binding => ({ ref: binding.ref, action: 'remove' })) }, over.revision);
+  const reduced = await state();
+  assert(reduced.exportStatus.canExport);
+  assert(JSON.stringify(reduced.configuration.rules) === JSON.stringify(original.rules), 'Reduction changed existing allow rules.');
+});
+// Isolated restoration runs after the production UI/navigation checks.
+await check('CSI-A07/A08 native upgrade clears legacy observation data and drops webRequest permission', verifyObservationCleanup);
 await check('Portable snapshot contains selected scope and exact empty name', async () => {
   const current = await state();
   const store = current.stores.find(store => store.label === 'Native Work');

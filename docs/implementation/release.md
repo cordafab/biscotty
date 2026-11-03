@@ -1,6 +1,13 @@
 # Release preparation
 
-Version: 0.1.1. Status: unsigned development package; release acceptance remains incomplete.
+Version: 0.2.1. Status: unsigned submission candidate; release acceptance remains incomplete.
+
+Current evidence: [submission report](submission-readiness-0.2.1.md).
+Prepared listing, support details, privacy text, and reviewer notes: [Mozilla submission materials](mozilla-submission.md).
+
+Version 0.2.1 includes the [frontend refresh](frontend-refresh.md) and its visual refinements.
+Version 0.2.0 adds partition-specific exceptions and stored-cookie inventories for Settings and Current Site.
+Controlled implementation checks pass; native and signed-release verification remain incomplete.
 
 ## Package native sources
 
@@ -12,9 +19,10 @@ npm run check
 npm run package
 ```
 
-The package is `dist/biscotty-0.1.1.zip`. A SHA-256 file is written beside it.
-Packaging uses Node.js standard modules and fixed ZIP timestamps. Repeated builds of unchanged source produce identical archives.
-Only `manifest.json`, production `src/` files, and packaged `assets/` are included.
+The package is `dist/biscotty-0.2.1.zip`. A SHA-256 file is written beside it.
+Packaging uses Node.js standard modules and fixed ZIP timestamps.
+Repeated builds match in the tested Node/zlib environment; different compression versions may produce different archive bytes.
+Only `LICENSE`, `manifest.json`, production `src/` files, and packaged `assets/` are included.
 Tests, disposable profile files, documentation, development scripts, and operation data are excluded.
 The manifest and package metadata carry the same source version.
 
@@ -38,7 +46,16 @@ Biscotty skips ambiguous deletion requests when Firefox could select a protected
 Counts describe estimated scope and successful deletion calls; they do not prove exact cookie identities.
 
 Settings export and import use local JSON files with explicit container mapping and conflict decisions.
+Settings provides stored-cookie inventory, partition-specific exceptions, and reviewed keep-stored or burnable choices.
+Current Site lists stored-cookie domains associated with the current site and store, including known third-party partitions.
+Unpartitioned cookies appear under their own domain because Firefox cannot identify every site that may use them.
+Biscotty does not observe page requests or retain contacted hosts.
+It tracks top-level navigation generations in memory to reject stale Current Site edits.
+Association counts do not prove that a cookie was sent or read.
+
 Cookie values are never shown or exported. Biscotty makes no network requests and collects no telemetry.
+Settings exports contain domains, cookie names, paths, exceptions, and container labels that can identify users or sites.
+They are unencrypted local JSON files; review them before sharing. See the [privacy notice](../../PRIVACY.md).
 Biscotty does not run automatic deletion, block cookie creation, or synchronize through a cloud.
 
 ## Permission explanation
@@ -46,14 +63,59 @@ Biscotty does not run automatic deletion, block cookie creation, or synchronize 
 | Permission | Purpose |
 | --- | --- |
 | `cookies` | Read cookie metadata and execute confirmed safe deletion calls. |
-| `storage` | Save protection settings, memory-only current results, and one temporary interruption marker. |
+| `storage` | Save protection settings, the current operation view, and one temporary interruption marker. |
 | `contextualIdentities` | Find named containers, including containers without open tabs. |
 | `publicSuffix` | Use Firefox's domain classification for rule validation and current-site shortcuts. |
+| `webNavigation` | Invalidate Current Site edits after top-level navigation and confirm the current document identity. |
 | HTTP and HTTPS host access | Read and delete accessible website cookies across the agreed profile scope. |
 
 The manifest excludes private browsing and declares `data_collection_permissions.required: ["none"]`.
-It requests no tabs, browsingData, downloads, webRequest, or content-script permission.
+It requests no tabs, browsingData, downloads, webRequestBlocking, or content-script permission.
 The extension has no content scripts, external resources, or remote code.
+
+## Reviewer instructions
+
+Use a disposable Firefox desktop profile with synthetic cookies and containers.
+Grant HTTP and HTTPS website access and keep containers enabled.
+
+1. Open Settings and add a rule for a synthetic domain in one selected store.
+2. Save, reopen Settings, and verify the same domain remains protected only in that store.
+3. Create an unprotected synthetic cookie and open the toolbar popup.
+4. Prepare a burn preview, review its scope, and confirm the burn.
+5. Verify protected cookies remain and eligible synthetic cookies receive safe deletion attempts.
+6. Load a fixture that creates a third-party partitioned cookie and inspect Associated cookie domains.
+7. Edit one domain rule, save it, and verify unrelated rules remain unchanged.
+8. Reload the page before saving an old domain view and verify that refresh is required.
+9. Export settings and import them into another disposable profile with explicit container mapping.
+10. Verify Replace requires review and that cookie values are absent from the exported JSON.
+
+The automated native fixture is documented in [verification](verification.md#run-native-tests).
+It covers synthetic redirects, nested frames, cookie separation, popup forms, and cross-profile transfer.
+No account, service subscription, remote server, or bundled library is required by the extension.
+The production archive contains readable native source files without build transformations.
+
+## Resource and privacy limits
+
+Cookie inventories reject captures above 10,000 cookies or 2 MiB instead of reporting truncated results.
+Inventory pages contain at most 200 rows, and one reviewed choice batch contains at most 200 selections.
+Navigation generations are bounded to 128 tabs and remain in memory only.
+Mutation deduplication uses bounded backend memory with request digests, completed-response expiry, and capacity checks before execution.
+
+Only protection configuration and a necessary opaque interruption marker use persistent local storage.
+Navigation generations remain in extension memory; the current operation view uses Firefox session storage.
+No browsing history, cookie values, telemetry, or native identifiers are exported.
+
+## Submission fields still requiring the release owner
+
+| Field | Status |
+| --- | --- |
+| Distribution | Public AMO listing proposed; no submission performed. |
+| License | The repository declares MIT; the release owner must reflect this license in the listing metadata. |
+| Support | `me@fabriziocorda.com`, supplied by the release owner. |
+| Categories and listing assets | Privacy & Security proposed; production screenshot supplied with the submission evidence. Finalize in AMO. |
+| Developer account and identity availability | Not inspected; the release owner must confirm them. |
+| Privacy statement | [Public privacy notice](../../PRIVACY.md) prepared; copy or host it for the AMO listing. |
+| Signed installation and update | Pending, including permission prompts and restart evidence. |
 
 ## Release owner checks
 

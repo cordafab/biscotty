@@ -1,14 +1,66 @@
 # Implementation verification
 
-Date: 25 October 2026. Source version: 0.1.1.
+## Current Mozilla submission candidate
+
+Date: 3 November 2026. Version: 0.2.1.
+The [submission report](submission-readiness-0.2.1.md) is the current source of package identity, results, and remaining release gates.
+The candidate passes 196 automated tests, static checks, archive inspection, repeat packaging, and Mozilla validation without warnings.
+Firefox 159.0.1 and ESR 153.6.0 pass 19 default and 20 first-party-isolated scenarios each on macOS.
+The exact unmodified archive passes six production smoke checks, including an extension-attributed HTTP request observation.
+Firefox 153.0 could not initialize automation on this host; no minimum-version scenario pass is claimed.
+Signed lifecycle, Windows/Linux, exhaustive accessibility, and full manual acceptance remain pending.
+Earlier results below are historical and must not replace this candidate's evidence.
+
+
+## Version 0.2.1 metadata increment
+
+Date: 3 November 2026. Current source version: 0.2.1.
+The user requested a patch increment after the frontend refresh.
+Manifest and package metadata agree; static source checks, package generation, ZIP integrity, and SHA-256 verification passed.
+The frontend's 196 automated tests, 19 native scenarios, and seven browser DOM checks preceded this metadata increment.
+The earlier `0.2.0` evidence below remains historical.
+
+
+This file records current and historical implementation checks. Signed release verification remains incomplete.
+
+## Version 0.2.0 working-tree verification
+
+Date: 3 November 2026. Current source version: 0.2.0.
+The 190 controlled Node.js tests pass with no failures or skips.
+The static check passes for 28 native source files, imports, module boundaries, privacy restrictions, and the manifest.
+The 30-file `biscotty-0.2.0.zip` archive passes ZIP integrity checks and contains manifest version `0.2.0`.
+Firefox 159.0 on macOS 27.2 arm64 passes 18 disposable-profile scenarios without first-party isolation.
+A separate profile passes 19 scenarios with first-party isolation and cross-profile import.
+These runs include partition and store isolation, stale Current Site edits, and popup and Settings form behavior.
+The code review corrected Current Site policy status to use saved policy coverage instead of only captured cookie outcomes.
+Signed install, update, supported-platform, accessibility, and complete acceptance checks remain open.
+
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.
+
+## Version 0.1.5 lifecycle corrections
+
+OBS-17 and OBS-A10 require restoration to verify the saved top-level document against Firefox's current document.
+Matching committed records retain their generation and coverage; changed, loading, missing, and failed document lookups are discarded.
+BURN-28 and BURN-A18 require late cancellation rejection during terminal result persistence and marker cleanup.
+The controlled tests first reproduced both failures against unchanged production code.
+
+The final suite passes 175 tests with zero failures or skips.
+The independent audit probes pass 30 checks, including the original failure scenarios.
+Firefox 158.0.1 on macOS 27.0.1 arm64 passes 17 default and 18 first-party-isolated native scenarios.
+Those runs use separate disposable profiles and include reviewed cross-profile import.
+The native regression verifies actual frame document IDs and rejects an old saved snapshot after same-host navigation.
+Native observation listeners remain owned by the production background; restoration uses isolated saved-state fixtures.
+
+Version `0.1.5` packaging, ZIP integrity, source identity, and Mozilla validator 10.14.0 pass.
+Historical audit artifacts were removed during the approved documentation cleanup.
+Signed installation, signed update, minimum-version, ESR, Windows, Linux, and complete accessibility/lifecycle acceptance remain open.
 
 ## Completed checks
 
 - Native Node.js tests exercise pure policy, validation, configuration commits, transfer, GUI controllers, and public gateway requests.
 - Static source checks validate ES modules, local imports, packaged resources, frontend/backend separation, permissions, and prohibited network/dynamic execution.
-- Firefox 158.0.1 on macOS 27.0.1 arm64 passed disposable-profile tests with first-party isolation disabled and enabled.
+- Firefox 159.0 on macOS 27.2 arm64 passed disposable-profile tests with first-party isolation disabled and enabled.
 - Two separate Firefox profiles exported and imported synthetic protection using different native container identifiers.
 - Native checks covered closed-tab containers, whole-container protection, future parent-domain/path collisions, partitions, Secure and HttpOnly metadata, first-party separation, encoded-path skips, and null deletion responses.
 - Native DOM tests confirmed inert imported text, native form semantics, and the settings dialog's actual Save and Cancel behavior.
@@ -17,8 +69,8 @@ The release is not approved until every mandatory case in the PRDs has the requi
 
 Run `npm test` for the current exact test count and observed results.
 The baseline integrated Node.js check passed 99 tests; see the amendment evidence below for the current suite.
-The default native run passed 13 scenarios; the isolated cross-profile run passed 14 scenarios.
-Tests use Node.js v26.12.1 and Python 3.9 standard modules, with no third-party packages.
+The default native run passed 18 scenarios; the first-party-isolated cross-profile run passed 19 scenarios.
+The 0.2.0 runs used Node.js v24.22.1 and Python 3.12.14 standard modules, with no third-party packages.
 
 ## Requirement-to-test map
 
@@ -63,8 +115,10 @@ It installs a test copy with a development-only script; production packaging exc
 The runner connects only to Firefox's loopback Marionette automation endpoint.
 
 ```sh
-python3 tests/native/firefox.py --export-file /tmp/biscotty-profile-a.json
-python3 tests/native/firefox.py --fpi --import-file /tmp/biscotty-profile-a.json
+FIREFOX_BINARY=/path/to/firefox TMPDIR=/private/tmp MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 \
+  python3 tests/native/firefox.py --package dist/biscotty-0.2.1.zip --export-file /tmp/biscotty-profile-a.json
+FIREFOX_BINARY=/path/to/firefox TMPDIR=/private/tmp MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 \
+  python3 tests/native/firefox.py --package dist/biscotty-0.2.1.zip --fpi --import-file /tmp/biscotty-profile-a.json
 ```
 
 Set `FIREFOX_BINARY` to test another Firefox executable.
@@ -122,3 +176,99 @@ These checks use a disposable profile and standard-library loopback HTTP server.
 
 Actual toolbar geometry, screen-reader behavior, zoom, popup closure during submission, permission revocation, and event-page suspension still require release evidence.
 Signed installation, signed update, minimum-version Firefox, and other operating-system checks remain open.
+
+## Version 0.1.2 publishing preparation
+
+Date: 25 October 2026. Status: implementation and local preparation checks passed; public release remains unapproved.
+The [publishing PRD](../prd/09-publishing-0.1.md) defines this amendment.
+The historical 0.1.1 security report was removed during the approved documentation cleanup.
+
+### Implemented changes
+
+- Manifest and package metadata identify `0.1.2`; the configuration and portable formats remain version `1`.
+- Page observation coalesces equivalent resource requests and ignores non-navigation completion events.
+- Explicit tab, host, frame, pending-event, record-byte, and aggregate-byte limits bound retained observation work.
+- Automatic aggregate session snapshots batch changed state; unchanged reads do not rewrite saved observations.
+- Overflow and eviction invalidate old navigation generations and produce partial coverage instead of inventing complete observation.
+- Restored state is projected to permitted fields and checked against current resource limits.
+- Mutation capacity is reserved before handler scheduling; rejected requests cause no handler invocation.
+- Request digests replace retained payload fingerprints; completed responses expire or are evicted within a bounded cache.
+- Existing revision and token checks reject replay after response eviction.
+- The proposed listing now explains passive observation, all requested permissions, temporary metadata, resource limits, and association limits.
+- Release material includes reviewer instructions and explicit owner-only submission fields.
+
+### Acceptance evidence
+
+| Cases | Observed evidence |
+| --- | --- |
+| PUB-A01, PUB-A02 | Version metadata and active release paths identify `0.1.2`; the 27-entry package passes ZIP integrity checks. |
+| PUB-A03 | Listing, permission table, and privacy explanation include `webRequest`, `webNavigation`, and bounded session observations. |
+| PUB-A04, PUB-A05 | Current results and outstanding signed, platform, and owner-only actions are recorded separately below. |
+| PUB-A06 | Existing configuration, transfer, sender, selector, operation, and native fixtures continue to pass. |
+| OBS-A01, OBS-A05 | A 4,000-request duplicate burst adds one host with one subsequent snapshot write; completion bursts and unchanged reads add none. |
+| OBS-A02 | Small injected host and frame budgets retain bounded state with partial coverage. |
+| OBS-A03, OBS-A04 | Overflow, in-flight work, closure, unsupported pages, tab eviction, and byte exhaustion reject stale generations and prevent resurrection. |
+| OBS-A06 | Oversized hosts, malformed ancestry, aggregate restoration, and extra stored fields cannot restore an unsafe observed claim. |
+| OBS-A07 | Existing storage failure tests and public permission-loss tests clear old saved observations and preserve protection. |
+| OBS-A08, DEDUP-A08 | Existing native redirects, frames, reloads, popup saves, partitions, protected-cookie safety, and transfer cases pass. |
+| DEDUP-A01, DEDUP-A02 | Entry and byte saturation reject pending work before a new handler call. |
+| DEDUP-A03, DEDUP-A04 | Identical pending requests execute once; changed payloads fail; completed eviction and expiry retain pending identity. |
+| DEDUP-A05 | Handler failure returns one safe cached error and releases unused response reservation. |
+| DEDUP-A06 | A real configuration replay after eviction returns `REVISION_CONFLICT` without advancing the saved revision. |
+| DEDUP-A07 | A 1 MiB request remains deduplicated within a 5,000-byte cache budget while subsequent work remains available. |
+
+### Executed checks
+
+| Check | Result |
+| --- | --- |
+| `npm test` | 148 passed; zero failures, skips, or cancellations. |
+| `npm run package` | Static source check passed; native-source ZIP contains 27 production entries. |
+| Independent ZIP integrity | All compressed entries and CRCs passed with `unzip -t`. |
+| Mozilla `addons-linter` 10.14.0 | Zero errors, warnings, or notices for `biscotty-0.1.2.zip`. |
+| Native Firefox, isolation disabled | 14 scenarios passed in a disposable profile. |
+| Native Firefox, isolation enabled | 15 scenarios passed in a second profile, including cross-profile Replace import. |
+| Document checks | See the [publishing document review](../prd/REVIEW.md#version-012-publishing-review). |
+
+Environment: Firefox 158.0.1, macOS 27.0.1 arm64, Node.js v26.12.1, Python 3.9 standard modules.
+The external Mozilla validator remained in temporary storage; no project library dependency was added.
+Native tests use temporary installations with host access pre-granted by the fixture profile.
+They do not establish signed-install permission behavior or adversarial browser stress limits.
+
+Archive: `dist/biscotty-0.1.2.zip`.
+SHA-256: `23b24d9cf0eb2a42636c7d29470ab8524aff86bc3ab481b82a9d5ba376e2c1bf`.
+
+### Outstanding release gates
+
+Signed installation, signed update, restart, actual event-page suspension, interactive toolbar lifetime, and live permission revocation still require evidence.
+Firefox 153.0, the supported ESR patch, Windows, and Linux remain outside this run.
+Keyboard, screen-reader, zoom, and contrast verification remain incomplete.
+The release owner must select the license, provide support information, and complete account/listing fields.
+No AMO upload, signing, or public publication was performed.
+These open gates prevent a release-complete claim under REL-08.
+
+## Version 0.1.3 startup recovery correction
+
+Date: 25 October 2026. Status: correction and local preparation checks passed; signed release verification remains incomplete.
+The patch follows the [publishing requirements](../prd/09-publishing-0.1.md) and [patch decision](../prd/08-decisions.md#version-013-patch).
+The historical security report was removed; the correction and observed checks are summarized below.
+
+Initialization now marks failed startup as interrupted without claiming a live executor.
+Dismissal retains the operation lock until marker and session cleanup succeed.
+Three public-gateway cases cover startup marker reads, current-operation reads, and interrupted-state writes.
+They also check both cleanup failures, restored capabilities after dismissal, and zero automatic deletions.
+All three cases failed before the production correction and passed afterward.
+
+| Check | Result |
+| --- | --- |
+| `npm test` | 151 passed; zero failures, skips, or cancellations. |
+| `npm run package` | Static checks passed for 25 source files; the archive contains 27 production entries. |
+| ZIP integrity | All compressed entries and CRCs passed with `unzip -t`. |
+| Mozilla `addons-linter` 10.14.0 | Zero errors, warnings, or notices for `biscotty-0.1.3.zip`. |
+
+Environment: macOS 27.0.1 arm64, Node.js v26.12.1.
+Native Firefox checks were not rerun for this patch; earlier results remain attached to their tested versions.
+Signed, platform, accessibility, and lifecycle release gates remain pending.
+No submission, signing, or public publication occurred.
+
+Archive: `dist/biscotty-0.1.3.zip`.
+SHA-256: `8e4f16db94b3266e3cbf686d25c9abb27ed4cc1be080d98fad613a4eb6055db2`.

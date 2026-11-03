@@ -199,14 +199,62 @@ The product therefore labels observation gaps and avoids individual cookie-use c
 Checked on 25 October 2026.
 [Mozilla webNavigation API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation).
 [Mozilla onCommitted](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/onCommitted).
+[Mozilla getFrame](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webNavigation/getFrame).
 [Mozilla document identity guide](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Work_with_documentId).
 [Mozilla webRequest compatibility data](https://github.com/mdn/browser-compat-data/blob/main/webextensions/api/webRequest.json).
 
 Navigation events require `webNavigation` permission.
 Committed-navigation events identify the tab, frame, document, and parent document when available.
 Document identity distinguishes loaded documents from their reusable frame identifiers.
+`getFrame` returns the current top-level document identity for native tab and frame identifiers.
+Its `documentId` support begins with Firefox 153 in the checked compatibility data.
 The checked compatibility data records `webRequest` document identity support from Firefox 153.
 The design does not depend on `documentLifecycle`, whose Firefox support is absent in that data.
 
 Navigation generations, observation replacement, redirect grouping, and incomplete restoration coverage are project design choices.
 Native tests must verify event ordering and attribution on supported Firefox releases.
+
+## S22: Publishing preparation and resource limits
+
+Checked on 25 October 2026.
+[Mozilla session storage limits](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/session).
+[Mozilla add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/).
+[Mozilla validator command](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/#web-ext-lint).
+[Mozilla submission fields](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/).
+
+Firefox documents a session storage capacity of 10 MB.
+The smaller observation budget reserves capacity for other temporary extension state.
+Observation counts, persistence intervals, cache sizes, and eviction are project decisions.
+Mozilla requires necessary permissions, reviewable code, accurate descriptions, and acceptable browser performance.
+Local validation does not replace Mozilla review or signed-install checks.
+
+## Partition exception research — 3 November 2026
+
+[Mozilla Cookies API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies) describes partition keys and store access.
+[Mozilla cookie removal](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies/remove) describes deletion selectors.
+[Mozilla Total Cookie Protection](https://support.mozilla.org/en-US/kb/total-cookie-protection-and-website-breakage-faq) describes partitioning and possible site breakage.
+The exception precedence and same-base-domain exclusion are product decisions, not Firefox guarantees.
+
+## S23: Partitioned and shared cookies
+
+Checked on 3 November 2026.
+[Mozilla Total Cookie Protection FAQ](https://support.mozilla.org/en-US/kb/total-cookie-protection-and-website-breakage-faq).
+[Mozilla state partitioning](https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/State_Partitioning).
+[Mozilla cookies API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies).
+
+Total Cookie Protection is enabled by default but can be disabled.
+Storage access grants can permit access to unpartitioned cookies.
+Cookie-store isolation and top-level-site partitioning are distinct scopes.
+The cookies API exposes partition identity and can enumerate partitioned and unpartitioned storage.
+Grouping unpartitioned cookies without inferring every using site is the product's conservative design decision.
+
+## Mozilla submission research — 3 November 2026
+
+Checked current [add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/) and the [policy FAQ](https://extensionworkshop.com/documentation/publish/add-on-policies-faq/).
+Checked the [submission procedure](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/) and [source requirements](https://extensionworkshop.com/documentation/publish/source-code-submission/).
+Local backup, readable source, accurate disclosures, and justified permissions remain relevant.
+Recheck policy if submission occurs after the announced 1 December 2026 change.
+
+[Firefox 153 API updates](https://blog.mozilla.org/addons/2026/07/23/firefox-153-webextensions-api-updates/) confirm the required public-suffix and document-identity API baseline.
+The [release index](https://www.firefox.com/en-US/releases/) identifies the stable and supported ESR lines at verification time.
+Native results record exact tested versions instead of assuming compatibility from these sources.

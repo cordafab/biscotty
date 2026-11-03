@@ -1,7 +1,8 @@
 import { clone, fail, opaqueId, yieldTask } from '../../core/errors.js';
 import { checkFields, checkSize, LIMITS, normalizeDomain, validateConfiguration } from '../../core/configuration/index.js';
+import { portableExportStatus, serializePortable } from '../../core/transfer/index.js';
 
-const emptyRecord = () => ({ schemaVersion: 1, revision: 0, containerBindings: [], protectedContainerRefs: [], rules: [] });
+const emptyRecord = () => ({ schemaVersion: 2, revision: 0, containerBindings: [], protectedContainerRefs: [], rules: [], exceptions: [] });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 export function createConfiguration({ adapter, emit = () => {}, isLocked = () => false }) {
   let record = null;
@@ -35,6 +36,13 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
     for (const rule of value.rules) {
       try { domains.add(normalizeDomain(rule?.domain)); } catch { /* Full validation supplies field errors. */ }
     }
+    if (Array.isArray(value?.exceptions) && value.exceptions.length <= LIMITS.exceptions) {
+      for (const entry of value.exceptions) {
+        for (const field of ['cookieDomain', 'topLevelDomain']) {
+          try { domains.add(normalizeDomain(entry?.[field])); } catch { /* Full validation supplies field errors. */ }
+        }
+      }
+    }
     let count = 0;
     for (const domain of domains) {
       facts[domain] = await adapter.classifyHost(domain);
@@ -62,7 +70,24 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
       let facts;
       try { facts = await factsFor(raw); }
       catch { status = 'unreadable'; record = null; recoveryToken = null; return; }
-      try { record = validateConfiguration(raw, facts); status = 'valid'; recoveryToken = null; }
+      try {
+        const validated = validateConfiguration(raw, facts);
+        if (validated.schemaVersion === 1) {
+          // The migration is a complete, validated write and does not change revision.
+          // A changed record, storage error, or live operation must never be overwritten.
+          if (isLocked()) { record = validated; status = 'valid'; recoveryToken = null; return; }
+          record = null; status = 'unreadable'; recoveryToken = null;
+          const migrated = validateConfiguration({ ...validated, schemaVersion: 2, exceptions: [] }, facts);
+          try {
+            if (!same(await adapter.readConfigurationRecord(), raw)) throw new Error('record changed');
+            await adapter.writeConfigurationRecord(clone(migrated));
+            if (!same(await adapter.readConfigurationRecord(), migrated)) throw new Error('migration was not confirmed');
+          } catch { record = null; status = 'unreadable'; recoveryToken = null; return; }
+          record = migrated; observed = clone(migrated); status = 'valid';
+        } else {
+          record = validated; status = 'valid'; recoveryToken = null;
+        }
+      }
       catch { record = null; status = 'invalid'; updateRecovery(previousObserved); }
     } finally {
       // Native changes can preserve the revision, including corruption or manual replacement.
@@ -140,7 +165,7 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
     if (record) for (const binding of record.containerBindings) stores.push({ ref: binding.ref, label: binding.name, name: binding.name, color: binding.color, icon: binding.icon, kind: 'container', state: binding.state, availability: catalog && binding.state === 'active' ? 'available' : 'inactive', protected: record.protectedContainerRefs.includes(binding.ref) });
     // Recovery still needs destination choices, but these references are reserved only for this catalog generation.
     if (!record && catalog) for (const entry of recoveryBindings) stores.push({ ref: entry.ref, label: entry.name, name: entry.name, color: entry.color, icon: entry.icon, kind: 'container', state: 'active', availability: 'available', protected: false });
-    return { configuration: record ? { rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs) } : null, revision: record?.revision ?? null, stores, configurationStatus: status, recoveryToken, catalogGeneration };
+    return { configuration: record ? { rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs), exceptions: clone(record.exceptions ?? []) } : null, exportStatus: record ? portableExportStatus(record) : null, revision: record?.revision ?? null, stores, configurationStatus: status, recoveryToken, catalogGeneration };
   }
   async function verifyConfiguration() {
     let raw;
@@ -190,6 +215,9 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
         fail('STALE_IMPORT', 'Available containers changed. Refresh and review the settings again.');
       }
       const validated = validateConfiguration(candidate, await factsFor(candidate));
+      // User commits must remain exportable. Reads and native metadata reconciliation
+      // preserve existing protection even when a legacy record exceeds this limit.
+      serializePortable(validated);
       // Candidates cannot invent active native bindings or drop an existing active binding.
       const available = new Map(currentCatalog.containers.map(entry => [entry.cookieStoreId, entry]));
       for (const binding of validated.containerBindings) {
@@ -234,10 +262,10 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
     });
   }
   function editableCandidate(payload) {
-    checkFields(payload, ['rules', 'protectedContainerRefs', 'inactiveDecisions'], 'draft');
+    checkFields(payload, Object.hasOwn(payload, 'exceptions') ? ['rules', 'protectedContainerRefs', 'inactiveDecisions', 'exceptions'] : ['rules', 'protectedContainerRefs', 'inactiveDecisions'], 'draft');
     checkSize(payload, 'draft');
     if (!Array.isArray(payload.inactiveDecisions)) fail('VALIDATION_FAILED', 'Inactive-reference decisions must be an array.');
-    const candidate = { ...clone(record), rules: clone(payload.rules), protectedContainerRefs: clone(payload.protectedContainerRefs) };
+    const candidate = { ...clone(record), rules: clone(payload.rules), protectedContainerRefs: clone(payload.protectedContainerRefs), exceptions: clone(payload.exceptions ?? record.exceptions) };
     const decisions = new Map();
     for (const decision of payload.inactiveDecisions) {
       const fields = decision?.action === 'map' ? ['ref', 'action', 'targetRef'] : ['ref', 'action'];
@@ -254,6 +282,7 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
       if (decision.action === 'map') {
         if (record.protectedContainerRefs.includes(ref) && !candidate.protectedContainerRefs.includes(decision.targetRef)) candidate.protectedContainerRefs.push(decision.targetRef);
         candidate.rules = candidate.rules.map(rule => rule.scope?.type !== 'selected' ? rule : { ...rule, scope: { type: 'selected', storeRefs: [...new Set(rule.scope.storeRefs.map(value => value === ref ? decision.targetRef : value))].sort() } });
+        if (candidate.exceptions) candidate.exceptions = candidate.exceptions.map(entry => entry.scope?.type !== 'selected' ? entry : { ...entry, scope: { type: 'selected', storeRefs: [...new Set(entry.scope.storeRefs.map(value => value === ref ? decision.targetRef : value))].sort() } });
       }
       candidate.protectedContainerRefs = candidate.protectedContainerRefs.filter(value => value !== ref);
       // Removal requires the editable draft itself to remove all affected rule references.
@@ -262,15 +291,48 @@ export function createConfiguration({ adapter, emit = () => {}, isLocked = () =>
     return candidate;
   }
   const handlers = {
+    async listExceptions(payload, request) {
+      const offset = payload.offset ?? 0, pageSize = payload.pageSize ?? 100;
+      if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200) fail('INVALID_REQUEST', 'Choose a valid exception page.');
+      return runExclusive(async () => {
+        await verifyConfiguration();
+        if (request.expectedRevision !== undefined) assertRevision(request.expectedRevision);
+        const exceptions = record.exceptions ?? [];
+        return { exceptions: clone(exceptions.slice(offset, offset + pageSize)), revision: record.revision, nextOffset: offset + pageSize < exceptions.length ? offset + pageSize : null };
+      });
+    },
+    async createException(payload, request) { return changeException('create', payload, request); },
+    async updateException(payload, request) { return changeException('update', payload, request); },
+    async setExceptionEnabled(payload, request) { return changeException('enabled', payload, request); },
+    async deleteException(payload, request) { return changeException('delete', payload, request); },
     async saveConfiguration(payload, request) {
       assertRevision(request.expectedRevision);
       if (!catalog) fail('STORE_CATALOG_UNAVAILABLE', 'The complete container catalog is unavailable.');
       const candidate = editableCandidate(payload);
       const result = await commitConfiguration({ expectedRevision: request.expectedRevision, expectedCatalogGeneration: catalogGeneration, candidate });
-      return { configuration: { rules: result.record.rules, protectedContainerRefs: result.record.protectedContainerRefs }, revision: result.record.revision };
+      return { configuration: { rules: result.record.rules, protectedContainerRefs: result.record.protectedContainerRefs, exceptions: result.record.exceptions }, revision: result.record.revision };
     }
   };
-  return { initialize, refresh: initialize, readConfiguration, view, assertRevision, verifyConfiguration, runExclusive, commitConfiguration, reconcileCatalog: value => runExclusive(async () => {
+  async function changeException(action, payload, request) {
+    const fields = action === 'create' ? ['exception'] : action === 'update' ? ['index', 'exception'] : action === 'enabled' ? ['index', 'enabled'] : ['index'];
+    checkFields(payload, fields, 'exception');
+    assertRevision(request.expectedRevision);
+    if (!record || record.schemaVersion !== 2) unavailable();
+    if (action !== 'create' && (!Number.isInteger(payload.index) || payload.index < 0 || payload.index >= record.exceptions.length)) fail('INVALID_REQUEST', 'Choose an existing exception.');
+    if (action === 'enabled' && typeof payload.enabled !== 'boolean') fail('INVALID_REQUEST', 'Choose the exception state.');
+    const candidate = clone(record);
+    if (action === 'create') candidate.exceptions.push(clone(payload.exception));
+    else if (action === 'update') candidate.exceptions[payload.index] = clone(payload.exception);
+    else if (action === 'enabled') candidate.exceptions[payload.index].enabled = payload.enabled;
+    else candidate.exceptions.splice(payload.index, 1);
+    const result = await commitConfiguration({ expectedRevision: request.expectedRevision, expectedCatalogGeneration: catalogGeneration, candidate });
+    return { revision: result.record.revision };
+  }
+  function candidateFromDraft(payload) {
+    if (status !== 'valid' || !record) unavailable();
+    return editableCandidate(payload);
+  }
+  return { initialize, refresh: initialize, readConfiguration, view, assertRevision, verifyConfiguration, candidateFromDraft, runExclusive, commitConfiguration, reconcileCatalog: value => runExclusive(async () => {
     // A burn can acquire the lock while this reconciliation waits in the queue.
     // Do not adopt native settings into its frozen policy or observed-record baseline.
     if (isLocked()) return false;

@@ -1,6 +1,7 @@
 # PRD: Firefox backend and cookie burner
 
-Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
+Current Site stored-cookie inventory: Implementation in progress; release verification incomplete.
+The [stored-cookie inventory amendment](partition-exceptions/02-current-site-inventory.md) supersedes the historical observation requirements below.
 Owner: Track B.
 Depends on the [module interfaces](01-module-interfaces.md) and [protection rules](02-protection-and-settings.md).
 All native Firefox access belongs to this backend implementation or the backend client.
@@ -9,7 +10,7 @@ All native Firefox access belongs to this backend implementation or the backend 
 
 - **NATIVE-01.** The manifest MUST use version 3 with Firefox minimum version `153.0`.
 - **NATIVE-02.** Background execution MUST use supported Firefox event-page scripts, not a service worker assumption.
-- **NATIVE-03.** The manifest MUST request `cookies`, `storage`, `contextualIdentities`, `publicSuffix`, `webRequest`, and `webNavigation`.
+- **NATIVE-03.** The manifest MUST request `cookies`, `storage`, `contextualIdentities`, `publicSuffix`, and `webNavigation`.
 - **NATIVE-04.** Host permissions MUST cover `http://*/*` and `https://*/*`.
 - **NATIVE-05.** Private access MUST be excluded with `incognito: "not_allowed"`.
 - **NATIVE-06.** The extension MUST NOT require `tabs`, `webRequestBlocking`, `browsingData`, or `downloads` permissions.
@@ -26,8 +27,8 @@ Apply a restrictive extension-page content security policy.
 The policy must allow packaged scripts and styles while blocking outbound connections.
 The extension must make no network requests through another API or hidden page.
 
-The Current Site amendment revises NATIVE-03 and NATIVE-06 to permit passive page observation.
-The previous prohibition on `webRequest` is superseded for this purpose.
+The current inventory amendment removes the earlier request-observation requirement.
+The extension does not register `webRequest` listeners for Current Site.
 Observation must not block, redirect, or modify requests.
 See [approved amendments](08-decisions.md#current-site-amendment) and [request observation](SOURCES.md#s20-passive-request-observation).
 
@@ -74,13 +75,19 @@ The cookie-list action may enumerate a protected store when the user views its m
 
 ## Current-page cookie domains
 
-This section defines the implemented Current Site additions.
+> Historical requirements: [Current Site stored-cookie inventory](partition-exceptions/02-current-site-inventory.md) supersedes the request-observation requirements below.
+
+This section records the superseded request-observation design.
+The linked stored-cookie amendment defines current behavior.
 Release verification remains incomplete.
 The existing burner still enumerates its complete eligible store scope.
 The domain snapshot applies the narrower page and store selection defined here.
 Shared operations and payload fields belong in the [action contracts](01-module-interfaces.md#current-site-action-contracts).
 
 ### Page observation
+
+Version `0.1.2` adds observation limits, aggregate persistence, and explicit partial coverage after resource loss.
+These limits refine retention without changing cookie enumeration or allow-rule meaning.
 
 - **SITE-01.** Page observation MUST use passive HTTP/HTTPS request events without requesting headers or bodies.
 - **SITE-02.** The adapter MUST register request and navigation listeners synchronously during event-page initialization.
@@ -229,6 +236,7 @@ The interface can describe `completed` with skips as “Completed with skipped c
 - **BURN-25.** An active burn MUST NOT resume after browser restart, extension reload, or lost background execution.
 - **BURN-26.** A retained marker without live execution MUST produce an interruption notice on the next initialization.
 - **BURN-27.** Acknowledgment MUST clear the interruption marker before another burn starts.
+- **BURN-28.** Cancellation MUST reject an operation that has reached a terminal state, including during result persistence or marker cleanup.
 
 ## Temporary state without history
 
@@ -272,6 +280,7 @@ Production logs must not contain cookie metadata or browsing URLs.
 | BURN-A15 | Simultaneous starts from two windows produce one active burn. |
 | BURN-A16 | Permission loss during execution stops further calls and reports incomplete coverage. |
 | BURN-A17 | Repeated safe selectors retain bounded coverage; encoded paths, IDNs, and IPv6 never bypass selector safety. |
+| BURN-A18 | Cancellation during terminal result persistence or marker cleanup is rejected; the saved result remains terminal and dismissible. |
 
 ### Current Site acceptance criteria
 

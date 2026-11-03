@@ -11,7 +11,7 @@ async function walk(path) {
   return (await Promise.all((await readdir(path, { withFileTypes: true })).map(entry => entry.isDirectory() ? walk(resolve(path, entry.name)) : resolve(path, entry.name)))).flat();
 }
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
-const paths = ['manifest.json', ...(await walk(resolve(root, 'src'))).map(path => relative(root, path).replaceAll('\\', '/')), ...(await walk(resolve(root, 'assets'))).map(path => relative(root, path).replaceAll('\\', '/'))].sort();
+const paths = ['LICENSE', 'manifest.json', ...(await walk(resolve(root, 'src'))).map(path => relative(root, path).replaceAll('\\', '/')), ...(await walk(resolve(root, 'assets'))).map(path => relative(root, path).replaceAll('\\', '/'))].sort();
 function crc32(buffer) {
   let crc = 0xffffffff;
   for (const byte of buffer) {
@@ -24,7 +24,7 @@ function crc32(buffer) {
 const local = [], directory = [];
 let offset = 0;
 for (const path of paths) {
-  if (!/^(manifest\.json|src\/.*\.(js|html|css)|assets\/.*\.svg)$/.test(path)) throw new Error(`Unexpected package entry: ${path}`);
+  if (!/^(LICENSE|manifest\.json|src\/.*\.(js|html|css)|assets\/.*\.svg)$/.test(path)) throw new Error(`Unexpected package entry: ${path}`);
   const name = Buffer.from(path);
   const content = await readFile(resolve(root, path));
   const compressed = deflateRawSync(content, { level: 9 });

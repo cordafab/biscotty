@@ -1,21 +1,25 @@
 # PRD: Configuration transfer
 
 Owner: Track D.
+The [partition exception amendment](partition-exceptions/00-design.md#transfer-and-lifecycle) requires versioned transfer of exceptions.
+Version 2 integration is in progress; the version 1 contract remains necessary for older imports.
 Depends on the [module interfaces](01-module-interfaces.md) and [configuration data](02-protection-and-settings.md#configuration-data).
 Provides pure import calculations and backend import/export actions.
 
 ## Portable file contract
 
 The configuration file contains UTF-8 JSON.
-Version 1 accepts exactly the following root fields.
+Version 2 accepts exactly the following root fields.
+Version 1 imports retain their previous fields and contain no exceptions.
 
 | Field | Required type and meaning |
 | --- | --- |
 | `format` | Exact string `biscotty-config`. |
-| `schemaVersion` | Integer `1`. |
+| `schemaVersion` | Integer `2` for current exports. |
 | `containers` | Array of portable container descriptions. |
 | `protectedContainerRefs` | Unique array of portable container references. |
 | `rules` | Allow rules from the shared data contract, using portable scope references. |
+| `exceptions` | Partition exceptions from the shared data contract, using portable scope references. |
 
 A portable container contains `ref`, `name`, `color`, `icon`, and `state`.
 Its state is `active` or `inactive` in the exported source configuration.
@@ -35,6 +39,14 @@ An export uses the last saved configuration, not unsaved editor drafts.
 The backend returns text and a suggested filename.
 The frontend supplies a local download through standard browser file features.
 The export itself must not initiate a network request.
+
+- **XFER-29.** Export MUST use compact JSON with one final newline and the shared 2 MiB UTF-8 limit.
+- **XFER-30.** Resolved import candidates MUST satisfy the portable export limit before the backend presents them as ready to commit.
+- **XFER-31.** Every valid portable container reference MUST support each applicable explicit mapping decision, including prototype-related strings.
+
+The complete mapped candidate determines the size of Merge and Replace results.
+A fitting source file does not establish that its merged result fits.
+Oversized existing exports require a fitting reduction under CFG-23; they must never be truncated.
 
 ## Configuration example
 
@@ -132,7 +144,7 @@ Neither mode silently resolves a conflict.
 
 An identical canonical matcher with an identical mapped scope is a duplicate, not a conflict.
 Different matcher keys remain separate rules even when their effects overlap.
-Version 1 has no negative rules.
+Partition exception conflicts require explicit decisions when scope or enabled state differs.
 An existing-only rule missing from a Merge file remains unchanged.
 
 The following differences are conflicts.
@@ -211,3 +223,6 @@ This path does not keep a configuration backup or operation history.
 | XFER-A12 | Export contains no native store identifiers, cookie values, cookie inventory, or operation data. |
 | XFER-A13 | An excluded source reference does not narrow an All stores rule. |
 | XFER-A14 | The supplied example validates and retains its stated protection meaning. |
+| XFER-A15 | Compact exports round-trip large valid configurations and enforce exact UTF-8 boundaries. |
+| XFER-A16 | Merge rejects an oversized mapped result without changing saved settings, even when each source file fits. |
+| XFER-A17 | Prototype-related references support mapping, retention, exclusion, paging, and reset without inherited-object interference. |

@@ -1,7 +1,9 @@
 # Agent work plan
 
 This plan defines implementation responsibilities.
-The PRD package itself contains no extension source code.
+The approved [partition and inventory amendments](partition-exceptions/00-design.md) extend these track assignments.
+Their implementation is present; acceptance and release verification remain incomplete.
+The repository contains the extension source and the PRD package.
 The baseline extension is present; the Current Site cookie-domain additions are implemented; release verification remains incomplete.
 
 ## Shared preparation
@@ -165,3 +167,31 @@ Follow [verification and release](06-verification-and-release.md).
 Package native sources, test the signed install, and prepare Mozilla submission information.
 M3 is complete when the required evidence and release files are reviewable.
 Publishing remains the release owner's action.
+
+## Version 0.1.2 publishing work
+
+Owner: Integration agent, using the existing Track B interfaces.
+Historical scope: [publishing](09-publishing-0.1.md), retired observation limits, and [request limits](11-bounded-requests.md).
+
+1. Freeze the bounded observation adapter and request-capacity contracts.
+2. Implement observation limits and mutation admission with their acceptance tests.
+3. Update the version, disclosures, reviewer instructions, and release evidence.
+4. Run native safety checks, packaging, Mozilla validation, and document checks.
+5. Identify signed, platform, and owner-only checks that remain pending.
+
+Preparation completion requires recorded evidence for the implemented amendment cases.
+M3 public release completion still requires the existing signed and release-owner gates.
+
+Version `0.1.3` adds startup storage recovery under the existing Track B ownership.
+The integration agent updates metadata and release evidence for the patch.
+The [publishing requirements](09-publishing-0.1.md) now identify `0.1.5`; earlier preparation evidence remains historical.
+Version `0.1.4` delivers the publication audit corrections with their focused regression tests.
+Version `0.1.5` verifies restored document identities and terminal cancellation under Track B ownership.
+
+## Frontend refresh integration
+
+The [frontend refresh](12-frontend-refresh.md) uses the existing integration and Track C ownership.
+The integration agent defines selected-store context and site-bound metadata contracts before dependent frontend changes.
+Track C owns popup dialogs, Settings tabs, contextual help, and preserved draft workflows.
+Shared backend changes remain in `src/backend/firefox/views.js`; frontend changes remain in `src/frontend/`.
+Verification includes cross-store authorization, stale reads, tab navigation, and unchanged burner scope.

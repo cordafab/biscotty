@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/cordafab-vm1/Developer/biscotty/tests/native/firefox.py", line 197, in <module>
+    sys.exit(main())
+  File "/Users/cordafab-vm1/Developer/biscotty/tests/native/firefox.py", line 150, in main
+    raise RuntimeError('Firefox automation did not become available.')
+RuntimeError: Firefox automation did not become available.

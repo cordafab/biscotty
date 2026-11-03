@@ -39,3 +39,14 @@ test('CFG-A06 limits admit 10,000 rules and reject rule/string/hostname/binding/
   const large = Array.from({ length: 1000 }, (_, i) => rule({ name: `${i}${'x'.repeat(3000)}` }));
   assert.throws(() => validateConfiguration({ ...emptyRecord(), rules: large }, facts('example.com')), { code: 'VALIDATION_FAILED' });
 });
+
+test('version 2 validates exception selectors and keeps version 1 strict', async () => {
+  const { validateConfiguration } = await import('../../../src/core/configuration/index.js');
+  const facts = Object.fromEntries(['example.com', 'other.test'].map(host => [host, { host, kind: 'dns', knownSuffix: false, baseDomain: host }]));
+  const entry = { cookieDomain: '.EXAMPLE.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.test', topLevelIncludeSubdomains: true, scheme: 'https', name: null, path: '/', scope: { type: 'selected', storeRefs: ['normal'] }, enabled: true };
+  const value = { schemaVersion: 2, revision: 4, containerBindings: [], protectedContainerRefs: [], rules: [], exceptions: [entry] };
+  assert.equal(validateConfiguration(value, facts).exceptions[0].cookieDomain, 'example.com');
+  for (const bad of [ { ...value, exceptions: [entry, { ...entry, enabled: false }] }, { ...value, exceptions: [{ ...entry, scheme: 'ftp' }] }, { ...value, exceptions: [{ ...entry, scope: { type: 'selected', storeRefs: ['missing'] } }] }, { ...value, schemaVersion: 1 } ]) {
+    assert.throws(() => validateConfiguration(bad, facts), { code: 'VALIDATION_FAILED' });
+  }
+});

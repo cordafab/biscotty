@@ -64,6 +64,13 @@ The following additional technical nouns have fixed meanings in this package.
 | Fixture | Controlled data or a controlled environment used in a test. |
 | Test harness | The native functions that execute and report test cases. |
 | MiB | A data-size unit equal to 1,048,576 bytes. |
+| KiB | A data-size unit equal to 1,024 bytes. |
+| Cache | Temporary retained data used to answer repeated requests. |
+| Request fingerprint | A digest used to compare complete request content. |
+| SHA-256 | The named cryptographic digest algorithm used for request comparison. |
+| Capacity reservation | Memory capacity assigned before an action starts. |
+| Admission | The decision to accept work before its execution. |
+| Eviction | Removal of temporary data to enforce a resource limit. |
 
 Exact software names, API members, enum values, and future paths are technical identifiers.
 Their spelling comes from their native contract or the module interface document.

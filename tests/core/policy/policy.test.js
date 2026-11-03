@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { matchCookie, assessSelector, getSiteProtection, planQuickProtection } from '../../../src/core/policy/index.js';
 import { emptyRecord, rule } from '../../harness/fixtures.js';
-const cookie = { domain: '.example.com', name: 'login', path: '/', secure: false, httpOnly: false, session: true, partitionKey: null };
+const cookie = { domain: '.example.com', name: 'login', path: '/', secure: false, httpOnly: false, session: true, firstPartyDomain: '', partitionKey: null };
 const configuration = rules => ({ ...emptyRecord(), rules });
 const selected = (...storeRefs) => ({ type: 'selected', storeRefs });
 test('RULE-A01/A02 selected store scopes keep Work, Personal and Normal separate', () => {
@@ -72,4 +72,68 @@ test('UI-A06 inherited all-store, broader and whole-container protection require
 test('SAFE-07 noncanonical selector hosts cannot bypass protection through a final hostname dot', () => {
   const result = assessSelector(selector({ url: 'https://example.com./account' }), configuration([rule()]), 'normal');
   assert.equal(result.status, 'unknown');
+});
+
+test('partition exceptions override matching rules only with supported third-party identity and trusted facts', () => {
+  const exception = { cookieDomain: 'example.com', cookieIncludeSubdomains: true, topLevelDomain: 'other.test', topLevelIncludeSubdomains: false, scheme: 'https', name: 'login', path: '/', scope: selected('work'), enabled: true };
+  const cfg = { ...configuration([rule()]), exceptions: [exception] };
+  const partitioned = { ...cookie, partitionKey: { topLevelSite: 'https://other.test', hasCrossSiteAncestor: true } };
+  const facts = { cookieDomain: { host: 'example.com', kind: 'dns', knownSuffix: false, baseDomain: 'example.com' }, topLevelSite: { host: 'other.test', kind: 'dns', knownSuffix: false, baseDomain: 'other.test' } };
+  const result = matchCookie(partitioned, cfg, 'work', facts);
+  assert.equal(result.protected, false);
+  assert.deepEqual(result.matchingExceptionIndexes, [0]);
+  assert.equal(result.overriddenRules[0].ruleIndex, 0);
+  for (const [item, config, store, context] of [
+    [partitioned, cfg, 'normal', facts], [partitioned, cfg, 'work', undefined],
+    [{ ...partitioned, partitionKey: null }, cfg, 'work', facts],
+    [{ ...partitioned, partitionKey: { ...partitioned.partitionKey, future: true } }, cfg, 'work', facts],
+    [{ ...partitioned, partitionKey: { topLevelSite: 'http://other.test' } }, cfg, 'work', facts],
+    [partitioned, { ...cfg, exceptions: [{ ...exception, enabled: false }] }, 'work', facts],
+    [partitioned, { ...cfg, protectedContainerRefs: ['work'] }, 'work', facts],
+    [partitioned, cfg, 'work', { ...facts, topLevelSite: { ...facts.topLevelSite, baseDomain: 'example.com' } }]
+  ]) assert.equal(matchCookie(item, config, store, context).protected, true);
+});
+
+test('exception site comparison rejects same base domains and supports multiple enabled matches', () => {
+  const exception = { cookieDomain: 'example.com', cookieIncludeSubdomains: true, topLevelDomain: 'site.example.com', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true };
+  const item = { ...cookie, domain: 'sub.example.com', partitionKey: { topLevelSite: 'https://site.example.com' } };
+  const facts = { cookieDomain: { host: 'sub.example.com', kind: 'dns', knownSuffix: false, baseDomain: 'example.com' }, topLevelSite: { host: 'site.example.com', kind: 'dns', knownSuffix: false, baseDomain: 'example.com' } };
+  assert.equal(matchCookie(item, { ...configuration([rule()]), exceptions: [exception] }, 'normal', facts).protected, true);
+  const separate = { ...item, partitionKey: { topLevelSite: 'https://other.test' } };
+  const otherFacts = { ...facts, topLevelSite: { host: 'other.test', kind: 'dns', knownSuffix: false, baseDomain: 'other.test' } };
+  const first = { ...exception, topLevelDomain: 'other.test' };
+  const second = { ...first, scheme: 'https' };
+  const cfg = { ...configuration([rule()]), exceptions: [first, second] };
+  assert.deepEqual(matchCookie(separate, cfg, 'normal', otherFacts).matchingExceptionIndexes, [0, 1]);
+  cfg.exceptions[0].enabled = false;
+  assert.deepEqual(matchCookie(separate, cfg, 'normal', otherFacts).matchingExceptionIndexes, [1]);
+});
+
+test('selector proof permits only completely covered protected cookie domains and paths', async () => {
+  const { selectorCandidateHosts } = await import('../../../src/core/policy/index.js');
+  const s = selector({ partitionKey: { topLevelSite: 'https://other.test' } });
+  const exception = { cookieDomain: 'example.com', cookieIncludeSubdomains: true, topLevelDomain: 'other.test', topLevelIncludeSubdomains: false, scheme: 'https', name: null, path: null, scope: { type: 'all' }, enabled: true };
+  const cfg = { ...configuration([rule()]), exceptions: [exception] };
+  const domainFact = host => ({ host, kind: 'dns', knownSuffix: host === 'com', baseDomain: host === 'com' ? null : 'example.com' });
+  const facts = { cookieDomains: new Map(selectorCandidateHosts(s).map(host => [host, domainFact(host)])), topLevelSite: { host: 'other.test', kind: 'dns', knownSuffix: false, baseDomain: 'other.test' } };
+  assert.deepEqual(selectorCandidateHosts(s), ['sub.example.com', 'example.com', 'com']);
+  assert.equal(assessSelector(s, cfg, 'normal', facts).status, 'safe');
+  assert.equal(assessSelector({ ...s, firstPartyDomain: 'different.test' }, cfg, 'normal', facts).status, 'unsafe');
+  assert.equal(assessSelector(s, cfg, 'normal').status, 'unsafe');
+  assert.equal(assessSelector(s, { ...cfg, exceptions: [{ ...exception, cookieIncludeSubdomains: false }] }, 'normal', facts).status, 'unsafe');
+  assert.equal(assessSelector(s, { ...cfg, exceptions: [{ ...exception, path: '/account' }] }, 'normal', facts).status, 'unsafe');
+  assert.equal(assessSelector(s, { ...cfg, rules: [rule({ path: '/account' })], exceptions: [{ ...exception, path: '/account' }] }, 'normal', facts).status, 'safe');
+  facts.cookieDomains.delete('example.com');
+  assert.equal(assessSelector(s, cfg, 'normal', facts).status, 'unsafe');
+});
+
+test('site policy summaries cannot claim full protection over an applicable exception', async () => {
+  const { getDomainProtection } = await import('../../../src/core/policy/index.js');
+  const entry = { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.test', topLevelIncludeSubdomains: false, scheme: 'https', name: null, path: null, scope: { type: 'all' }, enabled: true };
+  const cfg = { ...configuration([rule()]), exceptions: [entry] };
+  assert.equal(getSiteProtection({ domain: 'example.com', includeSubdomains: true }, cfg, 'normal').status, 'partial');
+  assert.equal(getDomainProtection('example.com', cfg, 'normal').status, 'partial');
+  assert.equal(getDomainProtection('sub.example.com', cfg, 'normal').status, 'full');
+  assert.equal(getSiteProtection({ domain: 'example.com', includeSubdomains: true }, { ...cfg, protectedContainerRefs: ['work'] }, 'work').status, 'full');
+  assert.equal(getSiteProtection({ domain: 'example.com', includeSubdomains: true }, { ...cfg, exceptions: [{ ...entry, enabled: false }] }, 'normal').status, 'full');
 });

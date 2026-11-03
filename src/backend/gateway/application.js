@@ -11,7 +11,7 @@ export function createApplication(adapter, { extensionId, baseURL }) {
   let sequence = 0;
   let burner;
   const emit = reason => {
-    if (reason === 'configuration' || reason === 'stores') { siteHandles.invalidate(); handles.invalidate('burn'); handles.invalidate('site'); handles.invalidate('import'); handles.invalidate('importPlan'); }
+    if (reason === 'configuration' || reason === 'stores') { siteHandles.invalidate(); handles.invalidate('burn'); handles.invalidate('site'); handles.invalidate('sitePage'); handles.invalidate('cookies'); handles.invalidate('inventoryPlan'); handles.invalidate('import'); handles.invalidate('importPlan'); }
     adapter.broadcast?.({ type: 'stateChanged', sequence: ++sequence, reason });
   };
   const observations = createObservations({ adapter, onInvalidate: () => { emit('siteContext'); } });

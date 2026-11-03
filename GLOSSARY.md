@@ -58,16 +58,17 @@ The domain recorded on a cookie.
 _Avoid_: Current site, tab URL.
 
 **Page observation**:
-The temporary collection of hosts contacted during one page's lifetime in one tab.
+Retired behavior that collected contacted hosts during one page lifetime.
+Current Site uses stored-cookie associations instead.
 _Avoid_: Browsing history, cookie-use history.
 
 **Observation coverage**:
-Whether page observation started with the page load and retained the supported request activity.
-Observed coverage does not prove that every stored cookie was used.
+Retired description of request-observation completeness.
+Current inventory coverage describes available stored-cookie associations.
 _Avoid_: Complete cookie usage, transmission proof.
 
 **Domain snapshot**:
-A captured list of cookie domains and associated stored-cookie counts for one page observation and cookie store.
+A captured list of cookie domains and stored-cookie counts associated with one current site and selected store.
 _Avoid_: Live cookie list, request count.
 
 **Base domain**:
@@ -83,7 +84,7 @@ The effective protection of a site's cookie domains within one cookie store.
 _Avoid_: URL permission, login guarantee.
 
 **Effective protection**:
-The combined protection from applicable allow rules and whole-container protection.
+The protection from applicable allow rules and whole-container protection, after supported partition exceptions are evaluated.
 _Avoid_: Winning rule, override.
 
 **Partition identity**:
@@ -139,3 +140,16 @@ _Avoid_: Always keep existing, automatic union.
 **Replace**:
 An import mode that substitutes the confirmed imported configuration for the existing configuration.
 _Avoid_: Reset, merge.
+
+**Third-party jar**:
+A group of cookies for one third-party cookie domain, known top-level site partition, and cookie store.
+It is distinct from a complete container or cookie store.
+
+**Unpartitioned cookie**:
+A cookie without a top-level-site partition.
+It can be shared between sites within its cookie store, subject to Firefox access restrictions.
+Its metadata does not identify every site using it.
+
+**Selected store**:
+The available cookie store selected for popup protection and cookie inspection.
+Selecting it does not move the active tab.

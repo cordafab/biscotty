@@ -29,6 +29,16 @@ function navigate(adapter, documentId = 'current-document') {
   adapter.emitSiteActivity({ ...common, kind: 'committed' });
 }
 
+test('CSI-A07 requests do not invalidate contexts or retain observation state', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [siteCookie()] } });
+  navigate(s.adapter);
+  const page = await s.capture();
+  for (let i = 0; i < 2000; i++) s.adapter.emitSiteActivity({ kind: 'request', tabId: 1, frameId: 0, host: `r${i}.example.net` });
+  const saved = await s.request('saveSiteRule', { domainToken: page.domains[0].domainToken, ruleIndex: null, rule: newRule() }, page.revision);
+  assert.equal(saved.ok, true);
+  assert.deepEqual(await s.adapter.readSiteObservations(), {});
+});
+
 test('SITE-A01/A02/A03 domain snapshot selects exact host-only and ancestor domain cookies, once each, from only the current store', async () => {
   const s = await setup({ cookies: {
     'firefox-default': [siteCookie(), cookie({ hostOnly: false }), cookie({ domain: '.EXAMPLE.COM', hostOnly: false, name: 'variant' }), cookie(), cookie({ domain: 'sibling.example.com' }), cookie({ domain: 'ample.com', hostOnly: false }), siteCookie({ path: '/private', secure: false, httpOnly: false, session: false })],
@@ -38,8 +48,8 @@ test('SITE-A01/A02/A03 domain snapshot selects exact host-only and ancestor doma
   assert.deepEqual(snapshot.domains.map(({ domain, cookieCount }) => ({ domain, cookieCount })), [{ domain: 'example.com', cookieCount: 2 }, { domain: 'shop.example.com', cookieCount: 2 }]);
   assert.equal(snapshot.storeRef, 'normal');
   assert.deepEqual(s.adapter.calls.filter(call => call.type === 'list').map(call => call.storeId), ['firefox-default']);
-  assert.equal(snapshot.coverage.state, 'partial');
-  assert.ok(snapshot.coverage.reason);
+  assert.equal(snapshot.coverage.state, 'stored');
+  assert.equal(snapshot.coverage.reason, null);
   assert.equal(snapshot.nextPageToken, null);
   assert.equal(JSON.stringify(snapshot).includes('firstPartyDomain'), false);
 });
@@ -55,8 +65,7 @@ test('SITE-A04 domains exclude unrelated partitions and first-party contexts and
     siteCookie({ name: 'unknown-partition', partitionKey: { unknownContext: 'example.com' } })
   ] } });
   const snapshot = await s.capture();
-  assert.equal(snapshot.domains.length, 1);
-  assert.equal(snapshot.domains[0].cookieCount, 3);
+  assert.deepEqual(snapshot.domains.map(row => [row.group, row.cookieCount]), [['own', 1], ['unpartitioned', 1]]);
   assert.equal(snapshot.coverage.state, 'partial');
 });
 
@@ -78,12 +87,14 @@ test('SITE-A12 exact domain policy retains restricted rules and indexes even und
   let snapshot = await s.capture();
   assert.equal(snapshot.domains[0].status, 'full');
   assert.deepEqual(snapshot.domains[0].matchingRuleIndexes, [0, 2]);
-  assert.equal(snapshot.domains[0].reasons.find(reason => reason.ruleIndex === 0).name, 'absent-name');
-  assert.equal(snapshot.domains[0].reasons.find(reason => reason.ruleIndex === 0).path, '/absent');
-  // A restricted rule alone is partial even if its name/path match no stored cookie.
+  // Restricted unmatched rules remain accessible by index while status describes stored cookies.
+
   const restricted = await setup({ record: { ...emptyRecord(), rules: [record.rules[0]] }, cookies: { 'firefox-default': [siteCookie()] } });
   snapshot = await restricted.capture();
   assert.equal(snapshot.domains[0].status, 'partial');
+  assert.deepEqual(snapshot.domains[0].matchingRuleIndexes, [0]);
+  assert.deepEqual(snapshot.domains[0].reasons, []);
+  // The full rule remains available by index even when no current cookie matches its name and path.
   const current = s.app.configuration.readConfiguration().record;
   const workRef = current.containerBindings.find(binding => binding.cookieStoreId === 'firefox-container-4').ref;
   const saved = await s.request('saveConfiguration', { rules: record.rules, protectedContainerRefs: [workRef], inactiveDecisions: [] });
@@ -94,6 +105,30 @@ test('SITE-A12 exact domain policy retains restricted rules and indexes even und
   assert.equal(snapshot.domains[0].status, 'full');
   assert.deepEqual(snapshot.domains[0].matchingRuleIndexes, [0, 2]);
   assert.ok(snapshot.domains[0].reasons.some(reason => reason.type === 'container'));
+});
+
+test('Current Site policy status ignores cookie counts and only applies exceptions to their captured partition', async () => {
+  const record = { ...emptyRecord(), schemaVersion: 2, rules: [newRule({ domain: 'tracker.other.com' })], exceptions: [
+    { cookieDomain: 'tracker.other.com', cookieIncludeSubdomains: false, topLevelDomain: 'unrelated.test', topLevelIncludeSubdomains: false, scheme: 'https', name: null, path: null, scope: { type: 'all' }, enabled: true }
+  ] };
+  const s = await setup({ record, cookies: { 'firefox-default': [cookie({ domain: 'tracker.other.com', partitionKey: { topLevelSite: 'https://example.com' } })] } });
+  const snapshot = await s.capture();
+  assert.equal(snapshot.domains[0].status, 'full');
+  assert.deepEqual(snapshot.domains[0].reasons.map(reason => reason.type), ['rule']);
+
+  const matchingRecord = { ...record, exceptions: [{ ...record.exceptions[0], topLevelDomain: 'example.com' }] };
+  const matching = await setup({ record: matchingRecord, cookies: { 'firefox-default': [cookie({ domain: 'tracker.other.com', partitionKey: { topLevelSite: 'https://example.com' } })] } });
+  const matchingSnapshot = await matching.capture();
+  assert.equal(matchingSnapshot.domains[0].status, 'partial');
+  assert.deepEqual(matchingSnapshot.domains[0].reasons.map(reason => reason.type), ['rule', 'exception']);
+
+  const unpartitionedRecord = { ...emptyRecord(), schemaVersion: 2, rules: [newRule()], exceptions: [
+    { cookieDomain: 'shop.example.com', cookieIncludeSubdomains: false, topLevelDomain: 'unrelated.test', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true }
+  ] };
+  const unpartitioned = await setup({ record: unpartitionedRecord, cookies: { 'firefox-default': [siteCookie()] } });
+  const unpartitionedSnapshot = await unpartitioned.capture();
+  assert.equal(unpartitionedSnapshot.domains[0].status, 'full');
+  assert.deepEqual(unpartitionedSnapshot.domains[0].reasons.map(reason => reason.type), ['rule']);
 });
 
 test('ARCH-A09 domain continuation retains captured order and counts; page-size changes and cross-owner tokens fail', async () => {
@@ -176,20 +211,11 @@ test('ARCH-A11 stale revisions and failed writes preserve saved protection', asy
   assert.equal(s.adapter.storedRecord.rules[0].domain, 'unrelated.com');
 });
 
-test('SITE-A01/ARCH-A09 observed third-party hosts join a fresh snapshot without changing existing domain pages', async () => {
-  const s = await setup({ cookies: { 'firefox-default': [siteCookie(), cookie({ domain: 'tracker.other.com' }), cookie({ domain: 'late.other.com' })] } });
-  navigate(s.adapter);
-  s.adapter.emitSiteActivity({ kind: 'request', tabId: 1, frameId: 0, documentId: 'current-document', host: 'tracker.other.com', scheme: 'https:', storeId: 'firefox-default', requestType: 'script', requestId: 'script-1' });
-  const first = await s.capture({ pageSize: 1 });
-  assert.equal(first.coverage.state, 'observed');
-  assert.equal(first.domains[0].domain, 'shop.example.com');
-  s.adapter.emitSiteActivity({ kind: 'request', tabId: 1, frameId: 0, documentId: 'current-document', host: 'late.other.com', scheme: 'https:', storeId: 'firefox-default', requestType: 'script', requestId: 'script-2' });
-  const second = await s.request('getSiteCookieDomains', { contextToken: first.contextToken, pageSize: 1, pageToken: first.nextPageToken });
-  assert.equal(second.ok, true, JSON.stringify(second));
-  assert.deepEqual(second.data.domains.map(row => row.domain), ['tracker.other.com']);
-  assert.equal(second.data.nextPageToken, null);
-  const refreshed = await s.capture();
-  assert.deepEqual(refreshed.domains.map(row => row.domain), ['late.other.com', 'shop.example.com', 'tracker.other.com']);
+test('CSI-A01/A02/A03 third-party partitions appear without observing requests', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [siteCookie(), cookie({ domain: 'tracker.other.com', partitionKey: { topLevelSite: 'https://example.com' } }), cookie({ domain: 'unrelated.other.com' }), cookie({ domain: 'wrong.other.com', partitionKey: { topLevelSite: 'https://other.com' } })] } });
+  const snapshot = await s.capture();
+  assert.deepEqual(snapshot.domains.map(row => [row.domain, row.group]), [['shop.example.com', 'unpartitioned'], ['tracker.other.com', 'third-party']]);
+  assert.equal(snapshot.coverage.state, 'stored');
 });
 
 test('SITE-A06/ARCH-A10 same-host navigation invalidates domain and continuation tokens', async () => {
@@ -236,7 +262,7 @@ test('ARCH-A11 a live burn permits snapshots but blocks popup rule saves', async
 });
 
 test('ARCH-A09 a full 200-domain page retains its context and every row authorization for later saves', async () => {
-  const cookies = Array.from({ length: 205 }, (_, index) => cookie({ domain: `host-${String(index).padStart(3, '0')}.other.com` }));
+  const cookies = Array.from({ length: 205 }, (_, index) => cookie({ domain: `host-${String(index).padStart(3, '0')}.other.com`, partitionKey: { topLevelSite: 'https://example.com' } }));
   const s = await setup({ cookies: { 'firefox-default': cookies } });
   navigate(s.adapter);
   for (const [index, item] of cookies.entries()) s.adapter.emitSiteActivity({ kind: 'request', tabId: 1, frameId: 0, documentId: 'current-document', host: item.domain, scheme: 'https:', storeId: 'firefox-default', requestType: 'script', requestId: `request-${index}` });
@@ -261,4 +287,19 @@ test('SITE-A11/ARCH-A04/A08 new site actions reject website senders and never re
   const outsider = { ...sender, url: 'https://shop.example.com/' };
   assert.equal((await s.request('getSiteCookieDomains', { contextToken: snapshot.contextToken }, undefined, outsider)).error.code, 'INVALID_REQUEST');
   assert.equal((await s.request('saveSiteRule', { domainToken: snapshot.domains[0].domainToken, ruleIndex: null, rule: newRule() }, undefined, outsider)).error.code, 'INVALID_REQUEST');
+});
+
+test('PEX-A08 popup exception save binds navigation and preserves unrelated policy', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [cookie({ domain: 'tracker.other.com', partitionKey: { topLevelSite: 'https://example.com' } })] } });
+  const first = await s.capture();
+  const exception = { cookieDomain: 'tracker.other.com', cookieIncludeSubdomains: false, topLevelDomain: 'example.com', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'selected', storeRefs: ['normal'] }, enabled: true };
+  const result = await s.request('saveSiteException', { domainToken: first.domains[0].domainToken, exception }, first.revision);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(s.adapter.storedRecord.exceptions, [exception]);
+  assert.deepEqual(s.adapter.storedRecord.rules, []);
+  const second = await s.capture();
+  navigate(s.adapter, 'new-page');
+  const stale = await s.request('saveSiteException', { domainToken: second.domains[0].domainToken, exception: { ...exception, name: 'different' } }, second.revision);
+  assert.equal(stale.error.code, 'STALE_SITE_CONTEXT');
+  assert.equal(s.adapter.storedRecord.exceptions.length, 1);
 });
