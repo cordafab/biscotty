@@ -339,3 +339,27 @@ The source check passes for 29 native files, and the unsigned 0.2.1 package pass
 The Firefox 159.0 run did not complete because Firefox discarded the Marionette browsing context before extension navigation.
 The implementation open-issues record contains this failed attempt.
 Signed installation, platform coverage, accessibility, lifecycle, and complete acceptance verification remain open.
+
+## Mozilla submission preparation — 3 November 2026
+
+The user requested security, stability, documentation, and distribution preparation for version 0.2.1.
+Current results and remaining gates appear in the [submission report](../implementation/submission-readiness-0.2.1.md).
+The [submission materials](../implementation/mozilla-submission.md) use the support contact supplied by the user.
+
+Updated the glossary, current coverage contracts, frontend disclosure, release matrix, implementation guidance, and superseded publishing status.
+QA-14 through QA-16, REL-10, UI-53, UI-A21, and UI-A22 now follow the approved stored-cookie amendment.
+Identifiers remain reserved and unchanged; current coverage fields match production.
+The distribution archive now includes the repository MIT notice.
+
+Local links and heading anchors resolve across current Markdown files.
+The fenced JSON example parses, and parsed requirement and acceptance definitions have no duplicates.
+Changed contract and glossary sentences screened meet the 25-word descriptive limit.
+Changed procedural prose contains no numbered instructions exceeding 20 words.
+New and changed Markdown files pass final-newline, trailing-whitespace, paragraph, and Git diff checks.
+The [mechanical check results](../implementation/submission-0.2.1/documentation-check.json) record the current scope and counts.
+Mechanical screening does not establish exhaustive dictionary or grammatical-role conformance.
+
+The candidate passes 196 automated tests, 78 Firefox scenarios, six unmodified-archive smoke checks, and Mozilla validation without warnings.
+Firefox 153.0 automation could not initialize on this host; minimum-version verification remains open.
+Signed lifecycle, other operating systems, exhaustive accessibility, and remaining native acceptance cases remain release gates.
+No public release approval or Mozilla acceptance is claimed.

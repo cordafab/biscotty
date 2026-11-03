@@ -1,0 +1,34 @@
+{
+  "browser": "159.0.1",
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "firstPartyIsolation": false,
+  "sourcePackageSha256": "5ebb38e7f26d8cc2bbb7c51076487b3ddbed70c9a945ee8070f82cfe5678bdf2",
+  "unmodifiedArchive": true,
+  "results": [
+    {
+      "name": "Unmodified archive installs and initializes the production Settings page",
+      "ok": true
+    },
+    {
+      "name": "Export privacy disclosure is visible and associated with Export",
+      "ok": true
+    },
+    {
+      "name": "Production UI saves a synthetic protection rule through the real gateway",
+      "ok": true
+    },
+    {
+      "name": "Saved protection survives a Settings page reload",
+      "ok": true
+    },
+    {
+      "name": "Production popup reconnects and renders the manual burner",
+      "ok": true
+    },
+    {
+      "name": "No extension-attributed HTTP requests during installation and production UI smoke",
+      "ok": true,
+      "requests": 0
+    }
+  ]
+}

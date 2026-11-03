@@ -1,0 +1,6 @@
+
+> biscotty@0.2.1 package
+> node scripts/package.mjs
+
+Checked 29 native source files, imports, module boundaries, privacy restrictions, and manifest.
+Unsigned native-source package: /Users/cordafab-vm1/Developer/biscotty/dist/biscotty-0.2.1.zip (32 files)

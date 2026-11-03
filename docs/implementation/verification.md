@@ -1,5 +1,17 @@
 # Implementation verification
 
+## Current Mozilla submission candidate
+
+Date: 3 November 2026. Version: 0.2.1.
+The [submission report](submission-readiness-0.2.1.md) is the current source of package identity, results, and remaining release gates.
+The candidate passes 196 automated tests, static checks, archive inspection, repeat packaging, and Mozilla validation without warnings.
+Firefox 159.0.1 and ESR 153.6.0 pass 19 default and 20 first-party-isolated scenarios each on macOS.
+The exact unmodified archive passes six production smoke checks, including an extension-attributed HTTP request observation.
+Firefox 153.0 could not initialize automation on this host; no minimum-version scenario pass is claimed.
+Signed lifecycle, Windows/Linux, exhaustive accessibility, and full manual acceptance remain pending.
+Earlier results below are historical and must not replace this candidate's evidence.
+
+
 ## Version 0.2.1 metadata increment
 
 Date: 3 November 2026. Current source version: 0.2.1.
@@ -103,8 +115,10 @@ It installs a test copy with a development-only script; production packaging exc
 The runner connects only to Firefox's loopback Marionette automation endpoint.
 
 ```sh
-python3 tests/native/firefox.py --export-file /tmp/biscotty-profile-a.json
-python3 tests/native/firefox.py --fpi --import-file /tmp/biscotty-profile-a.json
+FIREFOX_BINARY=/path/to/firefox TMPDIR=/private/tmp MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 \
+  python3 tests/native/firefox.py --package dist/biscotty-0.2.1.zip --export-file /tmp/biscotty-profile-a.json
+FIREFOX_BINARY=/path/to/firefox TMPDIR=/private/tmp MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 \
+  python3 tests/native/firefox.py --package dist/biscotty-0.2.1.zip --fpi --import-file /tmp/biscotty-profile-a.json
 ```
 
 Set `FIREFOX_BINARY` to test another Firefox executable.

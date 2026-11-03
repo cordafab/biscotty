@@ -221,3 +221,22 @@ OPT, IOBS, and ICTL identifiers in the removed proposal remain reserved.
 The [Current Site inventory amendment](partition-exceptions/02-current-site-inventory.md) replaces request-observation requirements.
 Historical decision rows describe earlier behavior; they do not reinstate retired observation requirements.
 Current tests, current audit evidence, and pending release obligations remain required.
+
+## Mozilla submission preparation — 3 November 2026
+
+The user requested security checks, stability verification, stale-document maintenance, and a distribution package.
+The public support contact is `me@fabriziocorda.com`, supplied by the user.
+
+| Decision | Required result |
+| --- | --- |
+| REL-D01 | Align current coverage and release guidance with the approved stored-cookie and selected-store amendments. |
+| REL-D02 | Explain identifying settings and unencrypted local exports beside Export and in the public privacy notice. |
+| REL-D03 | Prepare version 0.2.1 artifacts and evidence while retaining unresolved signed, platform, and accessibility gates. |
+
+QA-14 through QA-16, REL-10, and UI-53 now describe stored-cookie behavior instead of retired request observation.
+UI-A21 and UI-A22 retain their identifiers with current inventory expectations.
+The coverage contract uses `stored` and `partial`, matching the implemented backend.
+These corrections implement existing amendments; they do not restore request observation or weaken protection.
+The unsigned package remains distinct from a signed, publicly accepted release.
+
+The distribution archive also includes the repository MIT notice, which earlier packaging omitted.

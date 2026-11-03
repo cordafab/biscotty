@@ -1,0 +1,89 @@
+{
+  "browser": "153.6.0",
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "firstPartyIsolation": true,
+  "sourcePackageSha256": "5ebb38e7f26d8cc2bbb7c51076487b3ddbed70c9a945ee8070f82cfe5678bdf2",
+  "unmodifiedArchive": false,
+  "results": [
+    {
+      "name": "Native manifest/event page initializes empty settings and complete permissions",
+      "ok": true
+    },
+    {
+      "name": "UX native section tabs preserve mounted drafts and keyboard selection",
+      "ok": true
+    },
+    {
+      "name": "Native domain adapter: public suffix, IDN, IP and unknown suffix",
+      "ok": true
+    },
+    {
+      "name": "SITE native redirects, nested frames, domain snapshots and same-host reload invalidate popup saves",
+      "ok": true
+    },
+    {
+      "name": "Named containers without open tabs are cataloged",
+      "ok": true
+    },
+    {
+      "name": "Native selector avoids future protected parent domain/path collisions",
+      "ok": true
+    },
+    {
+      "name": "Native partitions, Secure/HttpOnly metadata and bounded deletion",
+      "ok": true
+    },
+    {
+      "name": "PEX native exception burns only the selected partition and store",
+      "ok": true
+    },
+    {
+      "name": "Encoded paths are conservatively skipped; IDN and IPv6 selectors preserve hosts",
+      "ok": true
+    },
+    {
+      "name": "Export strips native identifiers and reimport uses explicit mapping and conflicts",
+      "ok": true
+    },
+    {
+      "name": "Dismissal clears current result; local storage contains configuration only",
+      "ok": true
+    },
+    {
+      "name": "Options UI renders accessible controls with no remote resources",
+      "ok": true
+    },
+    {
+      "name": "Native DOM text safety and form semantics",
+      "ok": true
+    },
+    {
+      "name": "First-party contexts enumerate and delete with explicit separation",
+      "ok": true
+    },
+    {
+      "name": "Cross-profile Replace maps portable settings to different native identifiers",
+      "ok": true
+    },
+    {
+      "name": "Native settings dialog preserves unsaved drafts and confirms Save and Cancel",
+      "ok": true
+    },
+    {
+      "name": "XFER-A17 native import maps a prototype-named reference and reaches its final preview",
+      "ok": true
+    },
+    {
+      "name": "CFG-A10 native Settings explains legacy portable excess and permits a fitting reduction",
+      "ok": true
+    },
+    {
+      "name": "CSI-A07/A08 native upgrade clears legacy observation data and drops webRequest permission",
+      "ok": true
+    },
+    {
+      "name": "Portable snapshot contains selected scope and exact empty name",
+      "ok": true
+    }
+  ]
+}

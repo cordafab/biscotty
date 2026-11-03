@@ -1,20 +1,37 @@
 # Open implementation and verification issues
 
-Date: 3 November 2026. This file records unfinished work and observed verification limits.
-Passing existing tests does not establish that the approved amendments are implemented.
+Date: 3 November 2026. Current candidate: 0.2.1.
+See the [submission report](submission-readiness-0.2.1.md) for exact evidence and archive identity.
 
-## Partition and inventory implementation limits
+## Current results
 
-- The new exception, inventory, migration, transfer, and stored-cookie Current Site paths are implemented with controlled tests. Full acceptance and release verification remain incomplete; see the three documents under `docs/prd/partition-exceptions/` for the complete criteria.
-- An inventory batch accepts at most 200 selections and a captured inventory accepts at most 10,000 cookies and 2 MiB. Larger inventories require a narrower store selection; the extension rejects oversized captures instead of presenting them as complete.
-- Firefox does not provide an atomic cookie-enumeration-and-settings-write operation. Selected identities are rechecked before the write, but a website can change cookies after that check.
-- The baseline PRDs retain some historical observation-era descriptions; the approved amendments and current interfaces supersede those descriptions. The current release guide and verification record reflect the stored-cookie design. Signed installation, upgrade, and platform verification are not complete.
+The candidate passes 196 automated tests, source checks, reproducible packaging, independent archive inspection, and Mozilla validation.
+Firefox 159.0.1 and ESR 153.6.0 each pass 19 default-isolation scenarios and 20 first-party-isolated cross-profile scenarios on macOS.
+Six checks pass against the unmodified unsigned archive, including zero extension-attributed HTTP requests during the smoke workflow.
+The export privacy notice now explains identifying settings and unencrypted files.
+No unresolved protection defect was confirmed in this evaluation.
 
-## Verification limits
+## Remaining release gates
 
-- On 3 November 2026, Firefox 159.0 on macOS 27.2 arm64 passed 18 disposable-profile scenarios and 19 with first-party isolation and cross-profile import. The fixture uses `TMPDIR=/private/tmp` and `MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1`. Earlier retries encountered startup and timeout failures, and a stale dialog selector was corrected before these runs.
-- Those Firefox runs exercise partition and store isolation, but do not establish every PEX, INV, and CSI acceptance case. Complete manual accessibility, larger-jar, upgrade, lifecycle, and supported-platform checks remain necessary.
-- Signed installation and update, supported platform and Firefox version coverage, accessibility, and lifecycle release gates remain open as recorded in `docs/implementation/verification.md`.
-- On 3 November 2026, the current checkout passed `npm test` (196 tests, zero failures or skips) and `npm run check` (29 native source files). The Firefox 159.0 native runner was attempted with the documented environment, but Firefox discarded its browsing context before extension navigation; the run did not complete.
+- Firefox 153.0 automation failed to initialize on macOS 27.2. Launch diagnostics report a child-process permission error. Minimum-version behavior remains unverified.
+- Signed installation, actual permission prompts, signed updates, browser restart during a burn, and real event-page suspension remain unverified.
+- Windows and Linux native tests, complete keyboard/screen-reader/zoom/contrast review, and exhaustive current acceptance coverage remain pending.
+- Live permission revocation, container deletion during execution, popup closure during a real burn, and large native profiles need the remaining manual matrix.
+- The owner must review AMO account identity, the existing public extension identifier, listing metadata, and the returned signed package before publication.
 
-No review or test suite can prove the absence of every possible bug or security issue. New findings should include reproduction steps and their verification status here until resolved.
+## Test infrastructure findings
+
+The first ESR run observed terminal burn state before marker cleanup released the operation lock.
+The native helper now waits for cleanup before the next scenario edits settings; both final ESR suites pass.
+Initial minimum-version launches and one ESR automation-session launch failed before scenarios ran.
+These attempts are not passing evidence; diagnostics and the initial ESR scenario results are retained with the current evidence.
+The test runner now records startup diagnostics and can test production files extracted from the exact ZIP.
+Its smoke mode installs the unmodified ZIP without injected extension scripts.
+
+## Product limits
+
+Inventories reject captures above 10,000 cookies or 2 MiB instead of silently truncating them.
+Batches contain at most 200 selections. Larger captures require narrower store scope.
+Firefox cannot atomically enumerate cookies and write protection settings; a website can change cookies after the final identity check.
+Conservative deletion checks skip ambiguous selectors and cannot promise exact native cookie identities.
+Historic request-observation requirements remain marked as superseded; current stored-cookie and frontend amendments control behavior.

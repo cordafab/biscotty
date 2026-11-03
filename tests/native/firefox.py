@@ -11,6 +11,8 @@ import time
 import sys
 import argparse
 import platform
+import zipfile
+import hashlib
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -70,13 +72,54 @@ class Marionette:
         return result[3]
 
 
+def package_smoke(client, uuid):
+    """Exercise the unmodified archive through its real Settings document."""
+    def execute(script):
+        result = client.command('WebDriver:ExecuteScript', {'script': script, 'args': [], 'newSandbox': True, 'sandbox': 'default'})
+        return result.get('value', result) if isinstance(result, dict) else result
+
+    def wait(script):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if execute(script):
+                return
+            time.sleep(.1)
+        raise RuntimeError('Package UI did not reach the expected state: ' + script)
+
+    results = []
+    wait('return document.getElementById("status-indicator")?.textContent === "Status · Ready";')
+    results.append({'name': 'Unmodified archive installs and initializes the production Settings page', 'ok': True})
+    execute('document.getElementById("tab-transfer").click();')
+    wait('return document.getElementById("export").getAttribute("aria-describedby") === "export-privacy" && document.getElementById("export-privacy").getBoundingClientRect().height > 0;')
+    results.append({'name': 'Export privacy disclosure is visible and associated with Export', 'ok': True})
+    execute('document.getElementById("tab-rules").click(); document.getElementById("add-rule").click(); document.getElementById("rule-domain").value = "package-smoke.example.com"; document.querySelector("#rule-form button[type=submit]").click();')
+    wait('return !document.getElementById("save").disabled;')
+    execute('document.getElementById("save").click();')
+    wait('return document.getElementById("save").disabled && document.getElementById("rules-list").textContent.includes("package-smoke.example.com");')
+    results.append({'name': 'Production UI saves a synthetic protection rule through the real gateway', 'ok': True})
+    client.command('WebDriver:Refresh')
+    wait('return document.getElementById("status-indicator")?.textContent === "Status · Ready" && document.getElementById("rules-list").textContent.includes("package-smoke.example.com");')
+    results.append({'name': 'Saved protection survives a Settings page reload', 'ok': True})
+    # A new extension page has a different sender document and reconnects to the backend.
+    client.command('WebDriver:Navigate', {'url': 'moz-extension://' + uuid + '/src/frontend/popup.html'})
+    wait('return document.getElementById("burner")?.textContent.includes("Preview burn");')
+    results.append({'name': 'Production popup reconnects and renders the manual burner', 'ok': True})
+    client.command('WebDriver:Navigate', {'url': 'moz-extension://' + uuid + '/src/frontend/options.html'})
+    wait('return document.getElementById("status-indicator")?.textContent === "Status · Ready";')
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--screenshot')
     parser.add_argument('--fpi', action='store_true')
     parser.add_argument('--export-file')
     parser.add_argument('--import-file')
+    parser.add_argument('--package', type=Path, help='Test production files from this unsigned ZIP instead of the checkout.')
+    parser.add_argument('--smoke', action='store_true', help='Install the unmodified --package and exercise its production UI only.')
     args = parser.parse_args()
+    if args.smoke and not args.package:
+        parser.error('--smoke requires --package')
     firefox = os.environ.get('FIREFOX_BINARY', shutil.which('firefox') or '')
     if not firefox:
         raise RuntimeError('Set FIREFOX_BINARY to a Firefox desktop executable.')
@@ -84,7 +127,19 @@ def main():
         temporary = Path(directory)
         source = temporary / 'extension'
         source.mkdir()
-        for path in ['src', 'assets', 'manifest.json', 'tests']:
+        if args.package:
+            with zipfile.ZipFile(args.package) as archive:
+                names = archive.namelist()
+                if len(names) != len(set(names)) or 'manifest.json' not in names:
+                    raise RuntimeError('Invalid extension archive entries.')
+                for name in names:
+                    parts = Path(name).parts
+                    if name.startswith('/') or '\\' in name or '..' in parts or not (name in ('LICENSE', 'manifest.json') or name.startswith(('src/', 'assets/'))):
+                        raise RuntimeError('Unexpected extension archive entry: ' + name)
+                if archive.testzip() is not None:
+                    raise RuntimeError('Extension archive failed its CRC check.')
+                archive.extractall(source)
+        for path in (['tests'] if args.package else ['src', 'assets', 'manifest.json', 'tests']):
             original = ROOT / path
             target = source / path
             if original.is_dir():
@@ -97,7 +152,8 @@ def main():
         (source / 'tests/native/input.js').write_text('export const importedText = ' + json.dumps(imported) + ';\nexport const fixturePort = ' + str(site_server.server_port) + ';\n')
         # This script is inserted only into the disposable test copy.
         options = source / 'src/frontend/options.html'
-        options.write_text(options.read_text().replace('</body>', '<script type="module" src="../../tests/native/runner.js"></script></body>'))
+        if not args.smoke:
+            options.write_text(options.read_text().replace('</body>', '<script type="module" src="../../tests/native/runner.js"></script></body>'))
         profile = temporary / 'profile'
         profile.mkdir()
         with socket.socket() as sock:
@@ -133,9 +189,25 @@ def main():
                             raise RuntimeError('Firefox exit ' + str(process.returncode) + ': ' + (temporary / 'firefox.log').read_text()[-6000:])
                         time.sleep(.2)
                 if client is None:
-                    raise RuntimeError('Firefox automation did not become available.')
+                    raise RuntimeError('Firefox automation did not become available: ' + (temporary / 'firefox.log').read_text()[-6000:])
                 capabilities = client.command('WebDriver:NewSession', {'capabilities': {'alwaysMatch': {'acceptInsecureCerts': True}}})
-                client.command('Addon:Install', {'path': str(source), 'temporary': True})
+                if args.smoke:
+                    client.command('Marionette:SetContext', {'value': 'chrome'})
+                    client.command('WebDriver:ExecuteScript', {'script': '''
+                        const state = { requests: 0 };
+                        state.observer = { observe(subject) {
+                            const info = subject.QueryInterface(Ci.nsIHttpChannel).loadInfo;
+                            if ([info.loadingPrincipal, info.triggeringPrincipal].some(principal => principal?.addonPolicy?.id === 'biscotty@cordafab.com')) state.requests++;
+                        } };
+                        Services.appShell.hiddenDOMWindow.biscottyNetworkTest = state;
+                        Services.obs.addObserver(state.observer, 'http-on-modify-request');
+                    ''', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
+                    client.command('Marionette:SetContext', {'value': 'content'})
+                install_path = source
+                if args.smoke:
+                    install_path = temporary / 'candidate.xpi'
+                    shutil.copy2(args.package, install_path)
+                client.command('Addon:Install', {'path': str(install_path), 'temporary': True})
                 # Read the test add-on's generated UUID through Firefox's automation context.
                 client.command('Marionette:SetContext', {'value': 'chrome'})
                 result = client.command('WebDriver:ExecuteScript', {'script': 'return JSON.parse(Services.prefs.getStringPref("extensions.webextensions.uuids"))["biscotty@cordafab.com"];', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
@@ -143,8 +215,8 @@ def main():
                 client.command('Marionette:SetContext', {'value': 'content'})
                 client.command('WebDriver:Navigate', {'url': 'moz-extension://' + uuid + '/src/frontend/options.html'})
                 deadline = time.monotonic() + 60
-                result = None
-                while time.monotonic() < deadline:
+                result = package_smoke(client, uuid) if args.smoke else None
+                while result is None and time.monotonic() < deadline:
                     data = client.command('WebDriver:ExecuteScript', {'script': 'return document.documentElement.getAttribute("data-native-results");', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
                     text = data.get('value') if isinstance(data, dict) else data
                     if text:
@@ -154,8 +226,20 @@ def main():
                 if result is None:
                     state = client.command('WebDriver:ExecuteScript', {'script': 'return document.body.innerText;', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
                     raise RuntimeError('Native tests timed out: ' + str(state))
+                if args.smoke:
+                    client.command('Marionette:SetContext', {'value': 'chrome'})
+                    observed = client.command('WebDriver:ExecuteScript', {'script': '''
+                        const state = Services.appShell.hiddenDOMWindow.biscottyNetworkTest;
+                        Services.obs.removeObserver(state.observer, 'http-on-modify-request');
+                        delete Services.appShell.hiddenDOMWindow.biscottyNetworkTest;
+                        return state.requests;
+                    ''', 'args': [], 'newSandbox': True, 'sandbox': 'default'})
+                    requests = observed.get('value', observed) if isinstance(observed, dict) else observed
+                    result.append({'name': 'No extension-attributed HTTP requests during installation and production UI smoke', 'ok': requests == 0, 'requests': requests})
+                    client.command('Marionette:SetContext', {'value': 'content'})
                 browser_capabilities = capabilities.get('capabilities', capabilities)
-                print(json.dumps({'browser': browser_capabilities.get('browserVersion', 'unknown'), 'platform': platform.platform(), 'firstPartyIsolation': args.fpi, 'results': result}, indent=2))
+                identity = {'sourcePackageSha256': hashlib.sha256(args.package.read_bytes()).hexdigest(), 'unmodifiedArchive': args.smoke} if args.package else {}
+                print(json.dumps({'browser': browser_capabilities.get('browserVersion', 'unknown'), 'platform': platform.platform(), 'firstPartyIsolation': args.fpi, **identity, 'results': result}, indent=2))
                 if any(not row['ok'] for row in result):
                     return 1
                 if args.export_file:

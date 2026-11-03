@@ -247,3 +247,14 @@ Storage access grants can permit access to unpartitioned cookies.
 Cookie-store isolation and top-level-site partitioning are distinct scopes.
 The cookies API exposes partition identity and can enumerate partitioned and unpartitioned storage.
 Grouping unpartitioned cookies without inferring every using site is the product's conservative design decision.
+
+## Mozilla submission research — 3 November 2026
+
+Checked current [add-on policies](https://extensionworkshop.com/documentation/publish/add-on-policies/) and the [policy FAQ](https://extensionworkshop.com/documentation/publish/add-on-policies-faq/).
+Checked the [submission procedure](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/) and [source requirements](https://extensionworkshop.com/documentation/publish/source-code-submission/).
+Local backup, readable source, accurate disclosures, and justified permissions remain relevant.
+Recheck policy if submission occurs after the announced 1 December 2026 change.
+
+[Firefox 153 API updates](https://blog.mozilla.org/addons/2026/07/23/firefox-153-webextensions-api-updates/) confirm the required public-suffix and document-identity API baseline.
+The [release index](https://www.firefox.com/en-US/releases/) identifies the stable and supported ESR lines at verification time.
+Native results record exact tested versions instead of assuming compatibility from these sources.

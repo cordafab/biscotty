@@ -208,7 +208,7 @@ Inputs below omit the common envelope fields.
 | `getState` | None. | Configuration, portable export status, revision, store catalog, capabilities, and current operation view. | No. |
 | `getCookies` | Store references, search text, page size, and optional page token. | Sanitized metadata page and optional next token. | No. |
 | `getSiteContext` | Backend-client window context and optional selected store reference. | Opaque context token, site target, store, status, reasons, and permitted controls. | No. |
-| `getSiteCookieDomains` | Context token, optional page size, and optional page token. | Domain snapshot page, observation coverage, revision, store reference, and next page token. | No. |
+| `getSiteCookieDomains` | Context token, optional page size, and optional page token. | Domain snapshot page, stored-cookie coverage, revision, store reference, and next page token. | No. |
 | `setSiteProtection` | Context token and enabled state. | New revision and effective site status. | Yes. |
 | `saveSiteRule` | Domain token, rule index or null, and complete editable rule. | Committed revision. | Yes. |
 | `saveConfiguration` | Editable rules, protected references, and inactive-reference decisions. | Committed editable configuration and new revision. | Yes. |
@@ -240,7 +240,7 @@ Every user commit must bring the complete export within `limitBytes`.
 
 ## Current Site action contracts
 
-These additions retain protocol version `1` and the existing configuration schema.
+These actions retain protocol version `1`; the partition amendment defines configuration schema version `2`.
 They do not describe actions already supplied by the baseline implementation.
 
 ### Domain snapshot pages
@@ -254,9 +254,9 @@ Subsequent calls retain the original context token and page size.
 | Result field | Contract |
 | --- | --- |
 | `domains` | Array of domain rows in ascending canonical-domain order. |
-| `storeRef` | Captured current store reference. |
+| `storeRef` | Captured selected store reference. |
 | `revision` | Configuration revision captured with the snapshot. |
-| `coverage` | `{ state, reason }`; state is `observed` or `partial`; reason is safe text or null. |
+| `coverage` | `{ state, reason }`; state is `stored` or `partial`; reason is safe text or null. |
 | `nextPageToken` | Opaque continuation token, or null after the last domain. |
 
 Each row contains the following fields.
@@ -269,21 +269,23 @@ Each row contains the following fields.
 | `reasons` | Sanitized protection reasons, including applicable rules and whole-container protection. |
 | `matchingRuleIndexes` | Ascending indexes of all saved rules applicable to this domain and store. |
 | `domainToken` | Opaque authorization context for adding or editing a rule from this row. |
+| `group` | `unpartitioned`, `own`, or `third-party` association group. |
+| `topLevelSite` | Schemeful top-level site for a partitioned group, or null for unpartitioned cookies. |
 
 Name and path restrictions remain visible on applicable rules, even when no current cookie satisfies those restrictions.
 Whole-container protection does not hide the applicable rule indexes.
 The row status describes policy coverage, independently of its cookie count.
 An empty snapshot returns an empty `domains` array and a null continuation token.
 
-`observed` means observation began with the current navigation and has no known gap within supported access.
-It does not guarantee that every browser request was observable or every listed cookie was used.
-`partial` requires a reason, including an unobserved load or lost observation state.
+`stored` means known stored-cookie associations were captured within supported access.
+It does not prove that any listed cookie was sent or used.
+`partial` requires a reason when partition or first-party associations are unknown.
 The [backend PRD](03-firefox-backend-and-burner.md#current-page-cookie-domains) defines selection and lifecycle behavior.
 
 Page tokens bind to their snapshot, owner, site context, revision, catalog, and page size.
 Later activity or cookie changes do not change captured counts or page order.
 Navigation, permission, configuration, or relevant catalog changes invalidate dependent snapshot and domain tokens.
-Ordinary observation updates do not invalidate an existing snapshot.
+Cookie changes do not refresh an existing snapshot automatically.
 
 ### Popup rule saves
 

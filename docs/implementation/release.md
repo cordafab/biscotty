@@ -1,6 +1,9 @@
 # Release preparation
 
-Version: 0.2.1. Status: unsigned development package; release acceptance remains incomplete.
+Version: 0.2.1. Status: unsigned submission candidate; release acceptance remains incomplete.
+
+Current evidence: [submission report](submission-readiness-0.2.1.md).
+Prepared listing, support details, privacy text, and reviewer notes: [Mozilla submission materials](mozilla-submission.md).
 
 Version 0.2.1 includes the [frontend refresh](frontend-refresh.md) and its visual refinements.
 Version 0.2.0 adds partition-specific exceptions and stored-cookie inventories for Settings and Current Site.
@@ -17,8 +20,9 @@ npm run package
 ```
 
 The package is `dist/biscotty-0.2.1.zip`. A SHA-256 file is written beside it.
-Packaging uses Node.js standard modules and fixed ZIP timestamps. Repeated builds of unchanged source produce identical archives.
-Only `manifest.json`, production `src/` files, and packaged `assets/` are included.
+Packaging uses Node.js standard modules and fixed ZIP timestamps.
+Repeated builds match in the tested Node/zlib environment; different compression versions may produce different archive bytes.
+Only `LICENSE`, `manifest.json`, production `src/` files, and packaged `assets/` are included.
 Tests, disposable profile files, documentation, development scripts, and operation data are excluded.
 The manifest and package metadata carry the same source version.
 
@@ -50,6 +54,8 @@ It tracks top-level navigation generations in memory to reject stale Current Sit
 Association counts do not prove that a cookie was sent or read.
 
 Cookie values are never shown or exported. Biscotty makes no network requests and collects no telemetry.
+Settings exports contain domains, cookie names, paths, exceptions, and container labels that can identify users or sites.
+They are unencrypted local JSON files; review them before sharing. See the [privacy notice](../../PRIVACY.md).
 Biscotty does not run automatic deletion, block cookie creation, or synchronize through a cloud.
 
 ## Permission explanation
@@ -105,10 +111,10 @@ No browsing history, cookie values, telemetry, or native identifiers are exporte
 | --- | --- |
 | Distribution | Public AMO listing proposed; no submission performed. |
 | License | The repository declares MIT; the release owner must reflect this license in the listing metadata. |
-| Support | The release owner must supply a support contact or website. |
-| Categories and listing assets | Select categories and prepare final listing images in AMO. |
+| Support | `me@fabriziocorda.com`, supplied by the release owner. |
+| Categories and listing assets | Privacy & Security proposed; production screenshot supplied with the submission evidence. Finalize in AMO. |
 | Developer account and identity availability | Not inspected; the release owner must confirm them. |
-| Privacy statement | Local-only behavior is described above; confirm the final AMO privacy fields against current policy. |
+| Privacy statement | [Public privacy notice](../../PRIVACY.md) prepared; copy or host it for the AMO listing. |
 | Signed installation and update | Pending, including permission prompts and restart evidence. |
 
 ## Release owner checks

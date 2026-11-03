@@ -1,6 +1,6 @@
 # Implementation contracts
 
-M0 establishes these contracts before parallel edits. Public actions retain the PRD envelopes.
+Implemented contracts for version 0.2.1. Public actions retain the PRD envelopes.
 
 All JavaScript uses native ES modules. Errors use `BiscottyError` from `src/core/errors.js`.
 Pure functions throw that error on invalid input. Tests use `node:test` and `node:assert/strict`.
@@ -10,25 +10,25 @@ Pure functions throw that error on invalid input. Tests use `node:test` and `nod
 Export `createConfiguration({ adapter, emit, isLocked })` from `src/backend/configuration/service.js`.
 
 - `initialize({ firstInstall = false } = {})`: read settings and reconcile catalog; initialize empty only on confirmed install.
-- `readConfiguration()`: return `{ record, catalogGeneration, status, recoveryToken }`; `record` is null when unavailable.
+- `readConfiguration()`: return `{ record, catalogGeneration, status, recoveryToken, recoveryBindings }`; `record` is null when unavailable.
 - `view()`: return `{ configuration, exportStatus, revision, stores, configurationStatus, recoveryToken, catalogGeneration }`.
 - `verifyConfiguration()`: asynchronously compare native storage with the confirmed record; reject changed or unavailable settings without entering the queue.
 - `assertRevision(expectedRevision, recoveryToken)`: reject unavailable or stale settings; recovery token only permits missing/invalid state.
 - `runExclusive(task)`: serialize a callback with all commits and reconciliations.
 - `commitConfiguration({ expectedRevision, expectedCatalogGeneration, candidate, recoveryToken, beforeWrite? })`: validate and write complete record, check lock and current revision inside queue. Return `{ record, catalogGeneration }`. Optional `beforeWrite` performs final captured-site validation inside the queue.
 - `reconcileCatalog(catalog)`: same queue, metadata-only write, retain revision; do not run while locked.
-- `handlers.saveConfiguration(payload, request)`: editable `{ rules, protectedContainerRefs, inactiveDecisions }`, with request expectedRevision.
+- `handlers.saveConfiguration(payload, request)`: editable `{ rules, protectedContainerRefs, exceptions?, inactiveDecisions }`, with request expectedRevision.
 
 `record.containerBindings` uses PRD fields. Public store view: `{ ref, label, name, color, icon, kind: 'normal'|'container', availability: 'available'|'inactive', state, protected }`.
-`configuration` is `{ rules, protectedContainerRefs }`. No native identifiers in views.
+`configuration` is `{ rules, protectedContainerRefs, exceptions }`. No native identifiers in views.
 `exportStatus` is null without a valid record; otherwise `{ bytes, limitBytes, canExport }` measures the complete compact portable file.
 User commits enforce that file's 2 MiB UTF-8 limit, including its newline. Reads and native catalog reconciliation preserve existing oversized protection.
 `inactiveDecisions` array entries: `{ ref, action: 'keep'|'remove'|'map', targetRef? }`.
 
-Pure exports from `src/core/configuration/index.js`: `normalizeRule(raw, facts)`, `validateConfiguration(record, facts)`, `matcherKey(rule)`, `normalizeDomain(value)`.
+Pure exports from `src/core/configuration/index.js`: `normalizeRule(raw, facts)`, `normalizeException(raw, facts)`, `validateConfiguration(record, facts)`, `matcherKey(rule)`, `normalizeDomain(value)`.
 `facts` is an object keyed by canonical domain. Each value: `{ host, kind: 'dns'|'ipv4'|'ipv6', knownSuffix, baseDomain }`.
 Validation returns canonical record; throws field errors. No native calls in pure modules.
-Pure exports from `src/core/policy/index.js`: `matchCookie(cookie, configuration, storeRef)`, `assessSelector(selector, configuration, storeRef)`, `getSiteProtection(target, configuration, storeRef)`, `planQuickProtection(configuration, target, storeRef, enabled)`.
+Pure exports from `src/core/policy/index.js`: `matchCookie(cookie, configuration, storeRef, facts)`, `assessSelector(selector, configuration, storeRef, facts)`, `getSiteProtection(target, configuration, storeRef)`, `planQuickProtection(configuration, target, storeRef, enabled)`.
 Policy result: `{ protected, reasons }`; safety result `{ status: 'safe'|'unsafe'|'unknown', reasons }`; site result `{ status: 'full'|'partial'|'none', reasons }`; quick result `{ candidate, editorRequired, reasons }`.
 Selector fields: `{ model: 'firefox-url-v1', url, name, storeRef, firstPartyDomain, partitionKey }`. Missing partitionKey or firstPartyDomain means unknown; unpartitioned partitionKey is null.
 
@@ -78,7 +78,8 @@ Public labels must not show transport/native identifiers.
 ## Current Site domains
 
 `getSiteCookieDomains({ contextToken, pageSize?, pageToken? })` returns `{ domains, storeRef, revision, coverage, nextPageToken }`.
-Each domain row contains `{ domain, cookieCount, status, reasons, matchingRuleIndexes, domainToken }`.
+Each domain row contains `{ domain, group, topLevelSite, cookieCount, status, reasons, matchingRuleIndexes, domainToken }`.
+`coverage.state` is `stored` or `partial`, describing stored-cookie associations.
 Page sizes range from 1 through 200; continuation retains the original size and context.
 Snapshots remain fixed during subsequent page activity and cookie changes.
 

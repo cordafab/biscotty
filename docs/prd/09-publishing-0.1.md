@@ -1,5 +1,9 @@
 # PRD: Version 0.1 publishing
 
+Historical release-line specification.
+Current version 0.2.1 preparation follows the [release guide](../implementation/release.md) and current inventory amendments.
+Observation disclosures below describe version 0.1 and do not reinstate retired behavior.
+
 Status: Implemented on 25 October 2026; preparation checks passed; release verification remains incomplete.
 Delivery version: `0.1.5`.
 Owner: Integration agent.

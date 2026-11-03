@@ -33,13 +33,14 @@ Do not use a person's ordinary browsing profile as the test fixture.
 | Settings | CFG-A01 through CFG-A08, including failed storage, recovery, and concurrent saves. |
 | Module separation | ARCH-A01 through ARCH-A11 and a source dependency check. |
 | Native deletion | BURN-A01 through BURN-A17 using real cookie stores where applicable. |
-| Current Site | SITE-A01 through SITE-A12, including observation, grouped counts, navigation, and privacy. |
+| Current Site | Current CSI and UX cases, plus applicable SITE cases for grouping, navigation, and privacy. |
 | GUI | UI-A01 through UI-A25 using both a backend test adapter and Firefox. |
 | Transfer | XFER-A01 through XFER-A14 across two separate Firefox profiles. |
 | Privacy | No outbound requests, cookie-value leakage, history, or unexpected persistent operation data. |
 | Packaging | An unpacked build and a signed install show the same required behavior. |
 
-Each acceptance case in a module PRD is mandatory.
+Current approved acceptance cases are mandatory.
+The stored-cookie and frontend amendments supersede retired request-observation cases.
 A track cannot replace several cases with one general smoke-test statement.
 
 ## Browser coverage
@@ -94,41 +95,36 @@ Only configuration and a necessary temporary interruption marker can persist on 
 
 ## Current Site verification
 
-These cases extend the required matrix; they are not recorded test results.
-Use controlled adapters for deterministic lifecycle and storage-failure cases.
-Use Firefox fixtures for native request attribution, partition behavior, popup lifetime, and permission prompts.
+The [stored-cookie amendment](partition-exceptions/02-current-site-inventory.md) supersedes request-observation verification.
+The [frontend refresh](12-frontend-refresh.md) controls selected-store contexts and current popup placement.
+Retired OBS acceptance identifiers remain reserved; they are not current release obligations.
 
-- **QA-14.** Native tests MUST verify third-party domain association using page requests and controlled cookie stores.
-- **QA-15.** Lifecycle tests MUST verify current-document separation across redirects, nested frames, reloads, and background suspension.
-- **QA-16.** Privacy tests MUST inspect retained observation metadata and public responses for prohibited request and cookie data.
+- **QA-14.** Native tests MUST verify stored-cookie association, partition separation, and selected-store isolation without request observation.
+- **QA-15.** Lifecycle tests MUST reject stale contexts after navigation, store changes, background suspension, and restart.
+- **QA-16.** Privacy tests MUST inspect storage and public responses for prohibited request metadata and cookie values.
 
-Load a synthetic top-level page with first-party resources, nested third-party frames, redirects, and delayed requests.
-Create cookies with overlapping domains, host-only flags, paths, and partition identities.
-Verify grouped counts and exclusion of unrelated stores and top-level contexts.
-Include more than 200 domain groups to verify continuation and complete access through bounded pages.
-
-Open a tab before observation starts and verify partial coverage with manual reload guidance.
-Refresh its list without reloading and verify that past activity remains unobserved.
-Reload, navigate within the same host, and inject late events from the old document.
-Verify new observation generations and rejection of stale rule saves.
-Check fragment changes, same-document history, and back/forward restoration without retained observations.
-
-Suspend the event page while the popup is closed, then load another resource before reopening.
-Verify that successfully saved observation state remains usable.
-Exercise session read, write, and capacity failures without claiming observed coverage.
-Close tabs, revoke permissions, reload the extension, and restart Firefox.
-Verify the required observation cleanup and incomplete-coverage behavior.
-
-Exercise zero, one, and multiple applicable rules, including narrower and All stores rules.
-Verify whole-container explanations and visible wider scope before an existing rule is saved.
-Test immediate Save, Cancel, closure before Save, and closure after an accepted request.
-Change the revision or page while a modal is open, and start a burn from another window.
-Verify preserved drafts, refreshed target review, mutation deduplication, and backend lock enforcement.
-
-Check accessible pencils, modal focus, paging, long domains, and loading or failed states.
+Use synthetic top-level pages, redirects, nested frames, and cookies with distinct partition identities.
+Verify own-domain unpartitioned cookies, known third-party partitions, unknown associations, and unrelated stores.
+Include more than 200 domain groups to verify bounded continuation.
 Verify that cookie changes do not rearrange a displayed snapshot.
-Inspect local storage, session storage, exported files, responses, and logs for prohibited metadata.
-Record these results separately from baseline implementation evidence.
+
+Navigate within the same host and inject late navigation events.
+Verify rejection of stale context tokens and continued separation of selected and active-tab stores.
+Force event-page suspension and restart Firefox.
+Verify fresh contexts, preserved protection, and removal of legacy session observations.
+No request listener or contacted-host history may be restored.
+
+Exercise zero, one, and multiple applicable rules, partition exceptions, and whole-container protection.
+Verify wider scope explanations before saving an existing rule.
+Test Save, Cancel, closure before Save, and closure after an accepted request.
+Change the saved revision or page while a dialog is open.
+Start a burn from another window and verify mutation locks.
+
+Revoke host permission, disable containers, and remove a container during execution.
+Verify safe stopping, refresh guidance, and preserved Settings drafts.
+Check keyboard access, screen-reader labels, zoom, contrast, long domains, paging, and error states.
+Inspect local storage, session storage, exports, responses, and logs for prohibited data.
+Record actual results separately from acceptance obligations.
 
 ## Import and interface cases
 
@@ -159,7 +155,8 @@ No unmeasured fixed-duration completion promise is part of version 1.
 
 ## Release requirements
 
-Version `0.1.5` also follows the [0.1 publishing requirements](09-publishing-0.1.md).
+The [0.1 publishing requirements](09-publishing-0.1.md) record historical preparation.
+Current release evidence and package paths appear in the [release guide](../implementation/release.md).
 Preparation can finish while signed verification and public release approval remain pending.
 The original safety and acceptance gates remain required.
 
@@ -172,7 +169,7 @@ The original safety and acceptance gates remain required.
 - **REL-07.** A signed installation MUST pass permissions, restart, import/export, and protected-cookie safety checks.
 - **REL-08.** Release approval MUST require zero unresolved protection defects and completed acceptance evidence.
 - **REL-09.** The release owner MUST review current Mozilla submission requirements before submission.
-- **REL-10.** Release documentation MUST explain passive page observation, its permissions, temporary metadata, and cookie-association limits.
+- **REL-10.** Release documentation MUST explain navigation tracking, local storage, requested permissions, and stored-cookie association limits.
 
 Use [Mozilla manifest guidance](SOURCES.md#s17-mozilla-manifest-declarations) and [add-on policies](SOURCES.md#s18-mozilla-release-policies).
 Preparing release files does not itself publish the extension.

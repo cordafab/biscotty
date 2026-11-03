@@ -20,7 +20,7 @@ A burn covers regular browsing and all eligible Firefox containers, including th
 
 ## Try it
 
-Biscotty is currently an **unsigned development build**; release verification is still in progress. It requires Firefox desktop 153 or later and does not support private browsing.
+Biscotty is currently an **unsigned submission candidate**; release verification is still in progress. It requires Firefox desktop 153 or later and does not support private browsing.
 
 1. Download or clone this repository.
 2. In a separate Firefox test profile, open `about:debugging#/runtime/this-firefox`.
@@ -29,6 +29,9 @@ Biscotty is currently an **unsigned development build**; release verification is
 5. Protect the sites or containers you want to keep, then preview your first burn.
 
 No sites or containers are protected by default. Deleting cookies can sign you out, and websites can create new cookies afterward. Biscotty cleans up stored cookies; it does not block websites from creating them.
+
+The [privacy notice](PRIVACY.md) explains local settings, cookie metadata, and exported files.
+The [Mozilla submission materials](docs/implementation/mozilla-submission.md) contain the proposed listing and support details.
 
 For development, packaging, and verification details, see the [release guide](docs/implementation/release.md). The [product requirements](docs/prd/00-product.md) describe the full behavior.
 

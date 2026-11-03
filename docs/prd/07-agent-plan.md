@@ -3,7 +3,7 @@
 This plan defines implementation responsibilities.
 The approved [partition and inventory amendments](partition-exceptions/00-design.md) extend these track assignments.
 Their implementation is present; acceptance and release verification remain incomplete.
-The PRD package itself contains no extension source code.
+The repository contains the extension source and the PRD package.
 The baseline extension is present; the Current Site cookie-domain additions are implemented; release verification remains incomplete.
 
 ## Shared preparation

@@ -81,8 +81,8 @@ The summary status does not summarize protection across every listed third-party
 - **UI-49.** A successful Save MUST refresh the site summary and domain snapshot.
 - **UI-50.** Cancel or popup closure before Save MUST discard the unsaved popup form.
 - **UI-51.** Popup opening and explicit Refresh MUST capture a new domain snapshot.
-- **UI-52.** Requests and cookie changes within the same page MUST NOT refresh the displayed snapshot automatically.
-- **UI-53.** Partial observation coverage MUST show its reason and manual reload guidance.
+- **UI-52.** Cookie changes within the same page MUST NOT refresh the displayed snapshot automatically.
+- **UI-53.** Partial stored-cookie coverage MUST explain unknown associations without promising that a page reload will resolve them.
 - **UI-54.** The domain list MUST distinguish loading, empty, error, and unavailable states.
 - **UI-55.** Validation and revision errors MUST preserve the open popup form for review.
 - **UI-56.** A changed page context MUST disable saving until the user refreshes and reviews the target again.
@@ -197,6 +197,12 @@ Do not preselect a destructive resolution or hide unresolved entries.
 The final preview includes removed protection and excluded imported entries.
 Replace requires an explicit acknowledgment of replaced settings.
 
+## Export privacy disclosure
+
+Settings explains that exported settings can contain identifying domains, cookie names, paths, and container labels.
+Exports use unencrypted local JSON and exclude cookie values.
+The notice appears beside Export saved settings and is associated with that control.
+
 ## Presentation quality
 
 - **UI-34.** Every action MUST be available through a keyboard with visible focus.
@@ -230,8 +236,8 @@ Replace requires an explicit acknowledgment of replaced settings.
 | UI-A18 | Existing rules expose all fields and explain wider domain and store effects before Save. |
 | UI-A19 | Save commits once, closes the modal, and refreshes results; Cancel and closure before Save change no protection. |
 | UI-A20 | Popup reopening reconciles an accepted save whose reply was lost; the Settings draft workflow remains unchanged. |
-| UI-A21 | Opening, Refresh, and successful Save renew snapshots; later observed hosts and cookie changes do not rearrange rows. |
-| UI-A22 | Partial coverage shows its reason and reload guidance; Refresh cannot claim to recover unobserved past activity. |
+| UI-A21 | Opening, Refresh, and successful Save renew snapshots; later cookie changes do not rearrange rows. |
+| UI-A22 | Partial coverage explains unknown associations; Refresh cannot claim verified cookie use or complete browser access. |
 | UI-A23 | Revision errors preserve drafts; changed navigation clears rows and requires target review; an active burn blocks Save. |
 | UI-A24 | Keyboard, screen-reader, zoom, contrast, and long-domain checks cover pencils, paging, modal fields, and error states. |
 | UI-A25 | Loading, empty, unavailable, and failed states remain distinguishable; stored-cookie counts never claim verified cookie use. |

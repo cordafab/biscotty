@@ -24,8 +24,11 @@ async function burn() {
   if (!preview.eligibleAttempts) return { preview, operation: null };
   await client.startBurn({ previewToken: preview.previewToken }, current.revision);
   for (let i = 0; i < 1000; i++) {
-    const operation = (await state()).operation;
-    if (!['running','cancel_requested'].includes(operation.state)) return { preview, operation };
+    const next = await state();
+    const operation = next.operation;
+    // A terminal view is persisted before marker cleanup releases the lock.
+    // Wait for that cleanup before starting the next scenario's settings edit.
+    if (operation.state === 'interrupted' || (!['running','cancel_requested'].includes(operation.state) && next.capabilities.canBurn)) return { preview, operation };
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   throw new Error('Burn did not finish');

@@ -77,7 +77,8 @@ The cookie-list action may enumerate a protected store when the user views its m
 
 > Historical requirements: [Current Site stored-cookie inventory](partition-exceptions/02-current-site-inventory.md) supersedes the request-observation requirements below.
 
-This section defines the implemented Current Site additions.
+This section records the superseded request-observation design.
+The linked stored-cookie amendment defines current behavior.
 Release verification remains incomplete.
 The existing burner still enumerates its complete eligible store scope.
 The domain snapshot applies the narrower page and store selection defined here.

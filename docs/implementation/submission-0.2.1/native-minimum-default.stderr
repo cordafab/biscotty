@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/cordafab-vm1/Developer/biscotty/tests/native/firefox.py", line 267, in <module>
+    sys.exit(main())
+  File "/Users/cordafab-vm1/Developer/biscotty/tests/native/firefox.py", line 192, in main
+    raise RuntimeError('Firefox automation did not become available: ' + (temporary / 'firefox.log').read_text()[-6000:])
+RuntimeError: Firefox automation did not become available: *** You are running in headless mode.
+sandbox_extension_issue_file_to_process failed for /Applications/Biscotty-QA-Firefox-153.app/Contents/MacOS/plugin-container.app: 1 (Operation not permitted)
+[GFX1-]: RenderCompositorSWGL failed mapping default framebuffer, no dt

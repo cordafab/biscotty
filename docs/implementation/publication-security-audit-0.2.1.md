@@ -1,5 +1,8 @@
 # Biscotty 0.2.1 prepublication security and privacy evaluation
 
+Historical snapshot. The [submission report](submission-readiness-0.2.1.md) supersedes its release status and archive identity.
+The export disclosure was subsequently added; original findings and evidence below remain unchanged.
+
 Date: 3 November 2026. Disposition: local checks passed; publication acceptance remains incomplete.
 
 ## Scope and evidence identity
