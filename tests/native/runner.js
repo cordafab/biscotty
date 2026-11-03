@@ -13,7 +13,7 @@ async function check(name, task) {
 }
 const adapter = createFirefoxAdapter();
 const state = () => client.getState();
-let work, personal, verifyObservationRestoration;
+let work, personal, verifyObservationCleanup;
 async function save(rules = [], protectedContainerRefs = []) {
   const current = await state();
   return client.saveConfiguration({ rules, protectedContainerRefs, inactiveDecisions: [] }, current.revision);
@@ -39,6 +39,25 @@ try {
     assert(current.configuration.rules.length === 0);
     assert(!JSON.stringify(current).includes('cookieStoreId'));
   });
+  await check('UX native section tabs preserve mounted drafts and keyboard selection', async () => {
+    for (let i = 0; i < 200 && document.getElementById('draft-status').textContent.includes('Loading'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+    const rules = document.getElementById('tab-rules');
+    rules.click();
+    assert(!document.getElementById('panel-rules').hidden);
+    document.getElementById('add-rule').click();
+    document.getElementById('rule-domain').value = 'ui-draft.example.com';
+    document.querySelector('#rule-form button[type=submit]').click();
+    assert(document.getElementById('draft-status').textContent.includes('Unsaved'));
+    rules.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert(document.getElementById('tab-containers').getAttribute('aria-selected') === 'true');
+    document.getElementById('tab-rules').click();
+    assert(document.getElementById('rules-list').textContent.includes('ui-draft.example.com'));
+    document.getElementById('cancel').click();
+    document.getElementById('confirm-discard').click();
+    for (let i = 0; i < 200 && !document.getElementById('cancel').disabled; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert(!(await state()).configuration.rules.some(rule => rule.domain === 'ui-draft.example.com'));
+    document.getElementById('tab-cookies').click();
+  });
   await check('Native domain adapter: public suffix, IDN, IP and unknown suffix', async () => {
     assert((await adapter.classifyHost('shop.example.co.uk')).baseDomain === 'example.co.uk');
     assert((await adapter.classifyHost('co.uk')).knownSuffix);
@@ -46,56 +65,13 @@ try {
     assert((await adapter.classifyHost('[::1]')).kind === 'ipv6');
     assert((await adapter.classifyHost('xn--bcher-kva.de')).baseDomain === 'xn--bcher-kva.de');
   });
-  verifyObservationRestoration = async () => {
-    let stored = {};
-    const observationAdapter = {
-      ...adapter,
-      // Production owns native listeners; isolate the restoration under test.
-      onSiteActivity() {},
-      async readSiteObservations() { return structuredClone(stored); },
-      async writeSiteObservations(value) { stored = structuredClone(value); },
-      async clearSiteObservation() { stored = {}; }
-    };
-    let observer;
-    const tab = await browser.tabs.create({ url: `http://localhost:${fixturePort}/restore-page`, active: true });
-    async function loaded(path) {
-      for (let i = 0; i < 200; i++) {
-        const current = await browser.tabs.get(tab.id);
-        if (current.status === 'complete' && current.url === `http://localhost:${fixturePort}${path}`) return;
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      throw new Error('Observation fixture did not load');
-    }
-    async function observed() {
-      for (let i = 0; i < 200; i++) {
-        await client.getSiteContext({ windowId: tab.windowId });
-        const record = (await browser.storage.session.get('biscotty.siteObservations'))['biscotty.siteObservations']?.[tab.id];
-        const documentId = await adapter.getDocumentId(tab.id);
-        if (documentId && record?.frames[0]?.documentId === documentId) return record;
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      throw new Error('Navigation events did not reach the test observer');
-    }
-    try {
-      await loaded('/restore-page');
-      const old = await observed();
-      assert(old.frames[0]?.documentId === await adapter.getDocumentId(tab.id), 'Native document identity does not match navigation events');
-      assert(old.hosts.includes('127.0.0.1'), 'Restore fixture did not observe its resource host');
-      stored = { [tab.id]: structuredClone(old) };
-      observer = createObservations({ adapter: observationAdapter });
-      assert((await observer.get(await browser.tabs.get(tab.id))).generation === old.generation, 'Matching restoration was discarded');
-      await browser.tabs.update(tab.id, { url: `http://localhost:${fixturePort}/restore-next` });
-      await loaded('/restore-next');
-      assert(await adapter.getDocumentId(tab.id) !== old.frames[0].documentId, 'Native document did not change');
-      assert(stored[tab.id].generation === old.generation, 'Old snapshot was not retained for the failure fixture');
-      observer = createObservations({ adapter: observationAdapter });
-      const restored = await observer.get(await browser.tabs.get(tab.id));
-      assert(restored.coverage.state === 'partial' && restored.generation !== old.generation, 'Previous document was restored as current');
-      assert(JSON.stringify(restored.hosts) === JSON.stringify(['localhost']), 'Previous document hosts survived');
-    } finally {
-      await observer?.invalidate();
-      await browser.tabs.remove(tab.id);
-    }
+  verifyObservationCleanup = async () => {
+    const key = 'biscotty.siteObservations';
+    await browser.storage.session.set({ [key]: { 1: { hosts: ['old.example'] } } });
+    const tracker = createObservations({ adapter: { ...adapter, onSiteActivity() {} } });
+    await tracker.ready;
+    assert((await browser.storage.session.get(key))[key] === undefined, 'Legacy observations were not cleared');
+    assert(!browser.runtime.getManifest().permissions.includes('webRequest'), 'Request permission remains');
   };
   await check('SITE native redirects, nested frames, domain snapshots and same-host reload invalidate popup saves', async () => {
     const topURL = `http://localhost:${fixturePort}`;
@@ -112,26 +88,29 @@ try {
       assert(site.contextToken, JSON.stringify(site));
       const snapshot = await client.getSiteCookieDomains({ contextToken: site.contextToken });
       assert(snapshot.domains.some(row => row.domain === 'localhost'), JSON.stringify(snapshot));
-      assert(snapshot.domains.some(row => row.domain === '127.0.0.1'), JSON.stringify(snapshot));
+      assert(!snapshot.domains.some(row => row.domain === '127.0.0.1'), 'Unpartitioned third-party cookie was attributed to this site');
       const popup = document.createElement('iframe');
       popup.src = browser.runtime.getURL('src/frontend/popup.html');
       popup.style.width = '380px'; popup.style.height = '560px';
       document.body.prepend(popup);
       try {
-        for (let i = 0; i < 200 && !popup.contentDocument?.querySelector('[aria-label="Edit protection for localhost"]'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+        for (let i = 0; i < 200 && popup.contentDocument?.getElementById('view-cookies')?.disabled !== false; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        popup.contentDocument.getElementById('view-cookies').click();
+        for (let i = 0; i < 200 && popup.contentDocument?.querySelector('[aria-label="Edit protection for localhost"]')?.disabled !== false; i++) await new Promise(resolve => setTimeout(resolve, 20));
         const ui = popup.contentDocument;
         const pencil = ui.querySelector('[aria-label="Edit protection for localhost"]');
-        assert(pencil, 'Native popup did not render the observed domain.');
+        assert(pencil, 'Native popup did not render the stored-cookie domain.');
+        pencil.closest('details').open = true;
         pencil.click();
-        assert(ui.querySelector('dialog').open, 'Pencil did not open the native dialog.');
+        assert(ui.querySelector('#site-rule-dialog').open, 'Pencil did not open the native dialog.');
         assert(ui.querySelector('#site-rule-fields input').value === 'localhost');
         ui.querySelector('#cancel-site-rule').click();
-        assert(!ui.querySelector('dialog').open, 'Cancel did not close the dialog.');
+        assert(!ui.querySelector('#site-rule-dialog').open, 'Cancel did not close the dialog.');
         assert(!(await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Cancel changed saved rules.');
-        pencil.click();
+        ui.querySelector('[aria-label="Edit protection for localhost"]').click();
         ui.querySelector('#save-site-rule').click();
-        for (let i = 0; i < 200 && ui.querySelector('dialog').open; i++) await new Promise(resolve => setTimeout(resolve, 20));
-        assert(!ui.querySelector('dialog').open, 'Successful Save did not close the dialog.');
+        for (let i = 0; i < 200 && ui.querySelector('#site-rule-dialog').open; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        assert(!ui.querySelector('#site-rule-dialog').open, 'Successful Save did not close the dialog.');
         assert((await state()).configuration.rules.some(rule => rule.domain === 'localhost'), 'Popup Save did not commit the new rule.');
       } finally { popup.remove(); }
       const refreshed = await client.getSiteContext({ windowId: tab.windowId });
@@ -180,6 +159,27 @@ try {
     const result = await burn(); assert(result.operation.state === 'completed', JSON.stringify(result));
     assert(result.operation.attemptedCalls === result.operation.plannedAttempts);
     assert(!(await adapter.listCookies('firefox-default')).some(cookie => ['partitioned','plain'].includes(cookie.name)));
+  });
+  await check('PEX native exception burns only the selected partition and store', async () => {
+    const current = await state();
+    const rule = { domain: 'example.net', includeSubdomains: false, name: 'pex-native', path: '/', scope: { type: 'all' } };
+    const exception = { cookieDomain: 'example.net', cookieIncludeSubdomains: false, topLevelDomain: 'example.org', topLevelIncludeSubdomains: false, scheme: 'https', name: 'pex-native', path: '/', scope: { type: 'selected', storeRefs: ['normal'] }, enabled: true };
+    await client.saveConfiguration({ rules: [rule], exceptions: [exception], protectedContainerRefs: [], inactiveDecisions: [] }, current.revision);
+    try {
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true, partitionKey: { topLevelSite: 'https://example.org' } });
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true });
+      await setCookie({ url: 'https://example.net/', name: 'pex-native', value: 'synthetic', secure: true, partitionKey: { topLevelSite: 'https://example.org' }, storeId: work.cookieStoreId });
+      const result = await burn();
+      assert(result.preview.exceptionEligible >= 1, JSON.stringify(result.preview));
+      assert(result.operation?.state === 'completed', JSON.stringify(result.operation));
+      const normal = (await adapter.listCookies('firefox-default')).filter(cookie => cookie.name === 'pex-native');
+      const workCookies = (await adapter.listCookies(work.cookieStoreId)).filter(cookie => cookie.name === 'pex-native');
+      assert(normal.length === 1 && !normal[0].partitionKey, JSON.stringify(normal));
+      assert(workCookies.length === 1 && workCookies[0].partitionKey, JSON.stringify(workCookies));
+    } finally {
+      const latest = await state();
+      await client.saveConfiguration({ rules: [], exceptions: [], protectedContainerRefs: [], inactiveDecisions: [] }, latest.revision);
+    }
   });
   await check('Encoded paths are conservatively skipped; IDN and IPv6 selectors preserve hosts', async () => {
     const base = { domain: 'example.com', name: 'encoded', path: '/a%2Fb', firstPartyDomain: '', partitionKey: null, secure: true };
@@ -310,7 +310,7 @@ await check('CFG-A10 native Settings explains legacy portable excess and permits
   assert(JSON.stringify(reduced.configuration.rules) === JSON.stringify(original.rules), 'Reduction changed existing allow rules.');
 });
 // Isolated restoration runs after the production UI/navigation checks.
-await check('OBS-A10 native document identity preserves matching restoration and rejects stale storage after navigation', verifyObservationRestoration);
+await check('CSI-A07/A08 native upgrade clears legacy observation data and drops webRequest permission', verifyObservationCleanup);
 await check('Portable snapshot contains selected scope and exact empty name', async () => {
   const current = await state();
   const store = current.stores.find(store => store.label === 'Native Work');

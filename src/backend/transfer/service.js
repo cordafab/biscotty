@@ -7,7 +7,7 @@ function catalogKey(catalog) {
   return JSON.stringify({ normalStoreId: catalog.normalStoreId, containers: catalog.containers.map(container => ({ cookieStoreId: container.cookieStoreId, name: container.name, color: container.color, icon: container.icon })).sort((a, b) => a.cookieStoreId.localeCompare(b.cookieStoreId)) });
 }
 const accessKey = access => JSON.stringify({ granted: access.granted === true, available: access.available === true, reason: access.reason || '' });
-const editable = record => ({ rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs) });
+const editable = record => ({ rules: clone(record.rules), protectedContainerRefs: clone(record.protectedContainerRefs), ...(record.schemaVersion === 2 ? { exceptions: clone(record.exceptions) } : {}) });
 const planView = (token, plan) => ({ planToken: token, conflicts: clone(plan.conflicts), unresolvedConflicts: clone(plan.unresolvedConflicts), preview: clone(plan.preview), canCommit: plan.canCommit });
 
 export function createTransfer({ adapter, configuration, handles, isLocked = () => false }) {
@@ -95,7 +95,7 @@ export function createTransfer({ adapter, configuration, handles, isLocked = () 
       base.recovery = stage.recovery;
       const plan = resolveImportPlan(base);
       if (plan.unresolvedConflicts.length === 0) {
-        plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+        plan.candidate = validateConfiguration(plan.candidate, await factsFor(plan.candidate));
         serializePortable(plan.candidate);
       }
       await checkStage(stage, payload, request);
@@ -113,7 +113,7 @@ export function createTransfer({ adapter, configuration, handles, isLocked = () 
       const plan = resolveImportPlan(stored.plan, payload.decisions || [], payload.acknowledgments || {});
       // Validate the actual resolved result before presenting it as committable.
       if (plan.unresolvedConflicts.length === 0) {
-        plan.candidate = validateConfiguration(plan.candidate, await factsFor({ rules: plan.candidate.rules }));
+        plan.candidate = validateConfiguration(plan.candidate, await factsFor(plan.candidate));
         serializePortable(plan.candidate);
       }
       await checkStage(stored.stage, payload, request);
@@ -130,7 +130,7 @@ export function createTransfer({ adapter, configuration, handles, isLocked = () 
       requireActivePlan(payload.planToken, request.owner, stored);
       if (isLocked()) fail('OPERATION_ACTIVE', 'Wait for the active cookie burn before applying settings.');
       if (!stored.plan.canCommit) fail('UNRESOLVED_CONFLICTS', 'Resolve each conflict and confirm the final preview before applying.');
-      const candidate = validateConfiguration(stored.plan.candidate, await factsFor({ rules: stored.plan.candidate.rules }));
+      const candidate = validateConfiguration(stored.plan.candidate, await factsFor(stored.plan.candidate));
       await checkStage(stored.stage, payload, request);
       requireActivePlan(payload.planToken, request.owner, stored);
       const result = await configuration.commitConfiguration({

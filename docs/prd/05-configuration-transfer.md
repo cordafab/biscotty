@@ -1,21 +1,25 @@
 # PRD: Configuration transfer
 
 Owner: Track D.
+The [partition exception amendment](partition-exceptions/00-design.md#transfer-and-lifecycle) requires versioned transfer of exceptions.
+Version 2 integration is in progress; the version 1 contract remains necessary for older imports.
 Depends on the [module interfaces](01-module-interfaces.md) and [configuration data](02-protection-and-settings.md#configuration-data).
 Provides pure import calculations and backend import/export actions.
 
 ## Portable file contract
 
 The configuration file contains UTF-8 JSON.
-Version 1 accepts exactly the following root fields.
+Version 2 accepts exactly the following root fields.
+Version 1 imports retain their previous fields and contain no exceptions.
 
 | Field | Required type and meaning |
 | --- | --- |
 | `format` | Exact string `biscotty-config`. |
-| `schemaVersion` | Integer `1`. |
+| `schemaVersion` | Integer `2` for current exports. |
 | `containers` | Array of portable container descriptions. |
 | `protectedContainerRefs` | Unique array of portable container references. |
 | `rules` | Allow rules from the shared data contract, using portable scope references. |
+| `exceptions` | Partition exceptions from the shared data contract, using portable scope references. |
 
 A portable container contains `ref`, `name`, `color`, `icon`, and `state`.
 Its state is `active` or `inactive` in the exported source configuration.
@@ -140,7 +144,7 @@ Neither mode silently resolves a conflict.
 
 An identical canonical matcher with an identical mapped scope is a duplicate, not a conflict.
 Different matcher keys remain separate rules even when their effects overlap.
-Version 1 has no negative rules.
+Partition exception conflicts require explicit decisions when scope or enabled state differs.
 An existing-only rule missing from a Merge file remains unchanged.
 
 The following differences are conflicts.

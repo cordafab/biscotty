@@ -86,16 +86,13 @@ Snapshots remain fixed during subsequent page activity and cookie changes.
 It returns `{ revision }` and preserves unrelated configuration.
 Navigation, permission, catalog, owner, revision, operation-lock, and complete-record validation checks apply before writing.
 
-`createObservations({ adapter, onInvalidate })` registers reduced activity listeners synchronously and exposes `{ ready, get, invalidate }`.
-`ready` is a promise; `get(tab)` returns the current private observation with its navigation generation and coverage.
-Observation work uses a bounded native-event queue and session storage only.
-`writeSiteObservations(records)` confirms one complete bounded aggregate snapshot; `clearSiteObservation()` removes saved state after a failed write.
-Restoration retains only committed records whose top-level document ID matches the current native document.
-Missing or failed verification discards the saved record. Queued navigation events then establish the current observation normally.
-Limits, eviction, automatic batching, and partial coverage follow [the observation PRD](../prd/10-bounded-observation.md).
-`createObservations` accepts an optional private `limits` object for controlled tests.
-`siteContext` events invalidate the displayed page context; ordinary observed-host additions send no inventory-refresh event.
-The adapter requires passive `webRequest` and `webNavigation` permissions without headers, bodies, blocking, or content scripts.
+`createObservations({ adapter, onInvalidate })` registers navigation listeners synchronously and exposes `{ ready, get, invalidate }`.
+`get(tab)` confirms legacy session cleanup and returns the current in-memory navigation generation.
+The service retains at most 128 tab generations and never observes requests or retains contacted hosts.
+Failed legacy cleanup keeps site views unavailable; later reads retry cleanup without restoring old observations.
+Top-level navigation and tab closure invalidate site contexts.
+The adapter uses `webNavigation` without request listeners.
+The [Current Site inventory amendment](../prd/partition-exceptions/02-current-site-inventory.md) controls the replacement behavior.
 
 ## Version 0.1.2 mutation admission
 
@@ -107,3 +104,13 @@ Completed responses expire after 15 minutes or are evicted for capacity.
 Retries after eviction still require current revisions and valid, unconsumed tokens.
 The private gateway constructor accepts `limits` and `now` for controlled tests.
 The production limits are defined in [the request PRD](../prd/11-bounded-requests.md).
+
+## Frontend refresh contracts
+
+`getSiteContext({ windowId, storeRef? })` returns the selected `store` and captured `tabStore`.
+Omitting the reference selects the active tab's store.
+Tokens bind the original tab store separately from the selected cookie store.
+`getCookies({ contextToken, pageSize?, pageToken? })` returns metadata for the captured site in that selected store.
+Continuation tokens cannot move between contexts or into general Settings queries.
+Unpartitioned third-party cookies cannot be attributed to a main site and are excluded from site-bound rows.
+General inventory retains its existing association labels and scope filters.

@@ -1,6 +1,8 @@
 # PRD: Protection and settings
 
 Owner: Track A.
+The approved [partition exception amendment](partition-exceptions/00-design.md) supersedes RULE-08 and RULE-10 where an exception applies.
+Its schema migration and interface integration are in progress.
 Depends on the [shared module interfaces](01-module-interfaces.md).
 Provides pure policy functions and backend configuration actions.
 
@@ -11,11 +13,12 @@ The backend stores it under `biscotty.configuration`.
 
 | Field | Required type and meaning |
 | --- | --- |
-| `schemaVersion` | Integer `1`. |
+| `schemaVersion` | Integer `2`; valid version 1 records migrate with an empty exception list. |
 | `revision` | Nonnegative integer; increases after each user configuration commit. |
 | `containerBindings` | Array of local container bindings. |
 | `protectedContainerRefs` | Unique array of container references; excludes `normal`. |
 | `rules` | Array of allow rules with unique canonical matchers. |
+| `exceptions` | Array of partition exceptions with unique canonical identities. |
 
 A local container binding contains the following fields.
 This record is private backend data, not an editable frontend object.
@@ -52,7 +55,7 @@ An All stores scope has no `storeRefs` field.
 An empty cookie name is different from `null`.
 A specific path starts with `/`; `/` is an exact path, not every path.
 
-Version 1 has no optional product preferences beyond this protection data.
+The [partition exception amendment](partition-exceptions/00-design.md) defines exception selectors, precedence, and transfer behavior.
 English, manual deletion, and required confirmation are fixed behavior.
 View filters and unsaved form state are not configuration settings.
 Page observations and domain snapshots are temporary views, not configuration settings.
@@ -120,9 +123,9 @@ The backend exposes portable size through the [shared state contract](01-module-
 - **RULE-05.** Subdomain matching MUST require equality or a suffix preceded by a complete label separator.
 - **RULE-06.** `example.com` MUST NOT match `badexample.com` or `example.com.attacker.test`.
 - **RULE-07.** A non-null name or path MUST match exactly.
-- **RULE-08.** Any applicable allow rule MUST protect the cookie.
+- **RULE-08.** Any applicable allow rule MUST protect the cookie unless an applicable partition exception overrides it.
 - **RULE-09.** Whole-container protection MUST protect every cookie in that container.
-- **RULE-10.** Rules MUST apply across all supported partition identities within their store scope.
+- **RULE-10.** Rules MUST apply across supported partition identities within their store scope, subject to applicable partition exceptions.
 - **RULE-11.** Matching MUST NOT depend on cookie values, expiry class, Secure, HttpOnly, or session status.
 - **RULE-12.** Normal browsing MUST remain separate from all named containers.
 

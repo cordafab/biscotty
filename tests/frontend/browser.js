@@ -1,5 +1,5 @@
 import { createRuleFields } from '../../src/frontend/rule-form.js';
-import { element, checkbox, field } from '../../src/frontend/dom.js';
+import { element, checkbox, field, replace } from '../../src/frontend/dom.js';
 const hostile = '<img src=x onerror="globalThis.attacked=true"><script>globalThis.attacked=true</script>';
 const fixture = document.getElementById('fixture');
 const text = element('p', {}, hostile);
@@ -16,5 +16,8 @@ fixture.append(fields.node);
 check('UI-A17 popup rule fields retain exact domain and selected store', fields.read().domain === hostile && fields.read().scope.storeRefs[0] === 'normal' && !fields.read().includeSubdomains);
 check('UI-A24 shared popup fields use labeled native controls', [...fields.node.querySelectorAll('input, select')].every(input => input.closest('label')));
 check('UI-A11 rule field website text is inert', !fields.node.querySelector('img, script') && !globalThis.attacked);
+const nested = element('div');
+replace(nested, [element('h3', {}, 'Own cookies'), [[element('details', {}, element('summary', {}, hostile))]]]);
+check('UX-A06 nested cookie groups render as elements and retain inert names', nested.querySelectorAll('details').length === 1 && !nested.textContent.includes('[object') && !nested.querySelector('img, script'));
 document.getElementById('results').textContent = results.join('\n');
 fixture.remove();

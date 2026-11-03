@@ -3,6 +3,7 @@ import { normalizeDomain, validateConfiguration, matcherKey, LIMITS } from '../c
 
 export const MAX_BYTES = LIMITS.bytes;
 const portableKeys = ['format', 'schemaVersion', 'containers', 'protectedContainerRefs', 'rules'];
+const portableKeysV2 = [...portableKeys, 'exceptions'];
 const containerKeys = ['ref', 'name', 'color', 'icon', 'state'];
 const bytes = value => new TextEncoder().encode(value).length;
 const exact = (value, keys, field) => {
@@ -16,21 +17,23 @@ const text = (value, field) => {
 };
 const uniqueSorted = values => [...new Set(values)].sort();
 const scopeKey = scope => scope.type === 'all' ? 'all' : JSON.stringify(uniqueSorted(scope.storeRefs));
+const exceptionKey = item => JSON.stringify([item.cookieDomain, item.cookieIncludeSubdomains, item.topLevelDomain, item.topLevelIncludeSubdomains, item.scheme, item.name, item.path]);
 export function parsePortableText(value) {
   if (typeof value !== 'string') fail('VALIDATION_FAILED', 'Choose a UTF-8 JSON configuration file.', { field: 'text' });
   if (bytes(value) > MAX_BYTES) fail('VALIDATION_FAILED', 'The configuration file exceeds 2 MiB.', { field: 'text' });
   let parsed;
   try { parsed = JSON.parse(value); } catch { fail('VALIDATION_FAILED', 'The configuration file is not valid JSON.', { field: 'text' }); }
-  if (parsed?.format !== 'biscotty-config' || parsed?.schemaVersion !== 1) fail('UNSUPPORTED_FORMAT', 'This configuration format or version is unsupported.');
+  if (parsed?.format !== 'biscotty-config' || ![1, 2].includes(parsed?.schemaVersion)) fail('UNSUPPORTED_FORMAT', 'This configuration format or version is unsupported.');
   return parsed;
 }
 export function portableDomains(raw) {
   if (!Array.isArray(raw?.rules) || raw.rules.length > 10000) fail('VALIDATION_FAILED', 'The allow-rule list is invalid or too large.', { field: 'rules' });
-  return uniqueSorted(raw.rules.map(rule => normalizeDomain(rule?.domain)));
+  if (raw.exceptions !== undefined && (!Array.isArray(raw.exceptions) || raw.exceptions.length > 10000)) fail('VALIDATION_FAILED', 'The exception list is invalid or too large.', { field: 'exceptions' });
+  return uniqueSorted([...raw.rules.map(rule => normalizeDomain(rule?.domain)), ...(raw.exceptions || []).flatMap(exception => [normalizeDomain(exception?.cookieDomain), normalizeDomain(exception?.topLevelDomain)])]);
 }
 export function validatePortable(raw, facts) {
-  exact(raw, portableKeys, 'configuration');
-  if (raw.format !== 'biscotty-config' || raw.schemaVersion !== 1) fail('UNSUPPORTED_FORMAT', 'This configuration format or version is unsupported.');
+  exact(raw, raw?.schemaVersion === 2 ? portableKeysV2 : portableKeys, 'configuration');
+  if (raw.format !== 'biscotty-config' || ![1, 2].includes(raw.schemaVersion)) fail('UNSUPPORTED_FORMAT', 'This configuration format or version is unsupported.');
   if (!Array.isArray(raw.containers) || raw.containers.length > 1000) fail('VALIDATION_FAILED', 'The container list is invalid or too large.', { field: 'containers' });
   const references = new Set();
   const containers = raw.containers.map((container, index) => {
@@ -42,22 +45,24 @@ export function validatePortable(raw, facts) {
     return { ref, name: text(container.name, `containers.${index}.name`), color: text(container.color, `containers.${index}.color`), icon: text(container.icon, `containers.${index}.icon`), state: container.state };
   });
   const record = validateConfiguration({
-    schemaVersion: 1,
+    schemaVersion: raw.schemaVersion,
     revision: 0,
     containerBindings: containers.map(container => ({ ...container, cookieStoreId: null, state: 'inactive' })),
     protectedContainerRefs: raw.protectedContainerRefs,
-    rules: raw.rules
+    rules: raw.rules,
+    ...(raw.schemaVersion === 2 ? { exceptions: raw.exceptions } : {})
   }, facts);
-  return { format: 'biscotty-config', schemaVersion: 1, containers, protectedContainerRefs: record.protectedContainerRefs, rules: record.rules };
+  return { format: 'biscotty-config', schemaVersion: raw.schemaVersion, containers, protectedContainerRefs: record.protectedContainerRefs, rules: record.rules, ...(raw.schemaVersion === 2 ? { exceptions: record.exceptions } : {}) };
 }
 export function exportPortable(record) {
   const refs = new Map(record.containerBindings.map((binding, index) => [binding.ref, `c${index + 1}`]));
   const ref = value => value === 'normal' ? 'normal' : refs.get(value);
   return {
-    format: 'biscotty-config', schemaVersion: 1,
+    format: 'biscotty-config', schemaVersion: record.schemaVersion,
     containers: record.containerBindings.map(binding => ({ ref: ref(binding.ref), name: binding.name, color: binding.color, icon: binding.icon, state: binding.state })),
     protectedContainerRefs: uniqueSorted(record.protectedContainerRefs.map(ref)),
-    rules: record.rules.map(rule => ({ domain: rule.domain, includeSubdomains: rule.includeSubdomains, name: rule.name, path: rule.path, scope: rule.scope.type === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: uniqueSorted(rule.scope.storeRefs.map(ref)) } }))
+    rules: record.rules.map(rule => ({ domain: rule.domain, includeSubdomains: rule.includeSubdomains, name: rule.name, path: rule.path, scope: rule.scope.type === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: uniqueSorted(rule.scope.storeRefs.map(ref)) } })),
+    ...(record.schemaVersion === 2 ? { exceptions: record.exceptions.map(exception => ({ ...clone(exception), scope: exception.scope.type === 'all' ? { type: 'all' } : { type: 'selected', storeRefs: uniqueSorted(exception.scope.storeRefs.map(ref)) } })) } : {})
   };
 }
 function encodePortable(record) {
@@ -134,6 +139,16 @@ export function createImportPlan({ source, existing, mode, mappings, retainedRef
       if (storeRefs.length) importedRules.push({ ...clone(rule), scope: { type: 'selected', storeRefs } });
     }
   }
+  const importedExceptions = [];
+  for (const [index, exception] of (source.exceptions || []).entries()) {
+    if (exception.scope.type === 'all') importedExceptions.push(clone(exception));
+    else {
+      const storeRefs = uniqueSorted(exception.scope.storeRefs.map(ref => mapped.get(ref)).filter(Boolean));
+      const removedRefs = exception.scope.storeRefs.filter(ref => ref !== 'normal' && mapped.get(ref) === null);
+      if (removedRefs.length) excluded.push({ type: storeRefs.length ? 'exceptionScope' : 'exception', sourceIndex: index, exception: clone(exception), sourceRefs: removedRefs, remainingStoreRefs: storeRefs });
+      if (storeRefs.length) importedExceptions.push({ ...clone(exception), scope: { type: 'selected', storeRefs } });
+    }
+  }
   const conflicts = [];
   const duplicates = [];
   const existingRules = new Map(existing.rules.map(rule => [matcherKey(rule), rule]));
@@ -142,6 +157,12 @@ export function createImportPlan({ source, existing, mode, mappings, retainedRef
     const old = existingRules.get(matcherKey(imported));
     if (old && scopeKey(old.scope) !== scopeKey(imported.scope)) conflicts.push({ id: `rule-${index}`, type: 'scope', key: matcherKey(imported), existing: clone(old), imported: clone(imported), choices: ['existing', 'imported', 'combine'] });
     else if (old) duplicates.push({ type: 'rule', rule: clone(imported) });
+  }
+  const existingExceptions = new Map((existing.exceptions || []).map(item => [exceptionKey(item), item]));
+  for (const [index, imported] of importedExceptions.entries()) {
+    const old = existingExceptions.get(exceptionKey(imported));
+    if (old && (scopeKey(old.scope) !== scopeKey(imported.scope) || old.enabled !== imported.enabled)) conflicts.push({ id: `exception-${index}`, type: 'exception', key: exceptionKey(imported), existing: clone(old), imported: clone(imported), choices: old.enabled === imported.enabled ? ['existing', 'imported', 'combine'] : ['existing', 'imported'] });
+    else if (old) duplicates.push({ type: 'exception', exception: clone(imported) });
   }
   const importedProtection = [];
   const manyToOne = [];
@@ -161,7 +182,7 @@ export function createImportPlan({ source, existing, mode, mappings, retainedRef
       } else importedProtection.push({ targetRef, protected: value });
     }
   }
-  return { mode, source: clone(source), existing: clone(existing), bindings, importedRules, importedProtection, conflicts, duplicates, excluded, inactive, manyToOne, decisions: {}, acknowledgments: {} };
+  return { mode, source: clone(source), existing: clone(existing), bindings, importedRules, importedExceptions, importedProtection, conflicts, duplicates, excluded, inactive, manyToOne, decisions: {}, acknowledgments: {} };
 }
 
 export function resolveImportPlan(plan, decisions = [], acknowledgments = {}) {
@@ -194,6 +215,16 @@ export function resolveImportPlan(plan, decisions = [], acknowledgments = {}) {
     }
   }
   const protectedRefs = new Set(plan.mode === 'merge' ? plan.existing.protectedContainerRefs : []);
+  const resultExceptions = new Map((plan.mode === 'merge' ? plan.existing.exceptions || [] : []).map(item => [exceptionKey(item), clone(item)]));
+  const exceptionConflicts = new Map(plan.conflicts.filter(conflict => conflict.type === 'exception').map(conflict => [conflict.key, conflict]));
+  for (const imported of plan.importedExceptions || []) {
+    const key = exceptionKey(imported), conflict = exceptionConflicts.get(key);
+    if (!conflict) resultExceptions.set(key, clone(imported));
+    else if (choices[conflict.id] === 'existing') resultExceptions.set(key, clone(conflict.existing));
+    else if (choices[conflict.id] === 'imported') resultExceptions.set(key, clone(imported));
+    else if (choices[conflict.id] === 'combine') resultExceptions.set(key, { ...clone(imported), scope: combineScopes(conflict.existing.scope, imported.scope) });
+    else resultExceptions.delete(key);
+  }
   for (const entry of plan.importedProtection) {
     let value = entry.protected;
     if (entry.conflictId) {
@@ -204,10 +235,12 @@ export function resolveImportPlan(plan, decisions = [], acknowledgments = {}) {
     if (value === true) protectedRefs.add(entry.targetRef);
     else protectedRefs.delete(entry.targetRef);
   }
-  const candidate = { schemaVersion: 1, revision: plan.existing.revision, containerBindings: clone(plan.bindings), rules: [...resultRules.values()], protectedContainerRefs: uniqueSorted(protectedRefs) };
+  const schemaVersion = plan.existing.schemaVersion === 2 || plan.source.schemaVersion === 2 ? 2 : 1;
+  const candidate = { schemaVersion, revision: plan.existing.revision, containerBindings: clone(plan.bindings), rules: [...resultRules.values()], protectedContainerRefs: uniqueSorted(protectedRefs), ...(schemaVersion === 2 ? { exceptions: [...resultExceptions.values()] } : {}) };
   if (plan.mode === 'replace') {
     const retained = new Set([...candidate.protectedContainerRefs, ...plan.inactive.map(entry => entry.ref)]);
     for (const rule of candidate.rules) if (rule.scope.type === 'selected') for (const ref of rule.scope.storeRefs) retained.add(ref);
+    for (const item of candidate.exceptions || []) if (item.scope.type === 'selected') for (const ref of item.scope.storeRefs) retained.add(ref);
     // Replacement keeps active native catalog bindings and inactive references with reviewed protection.
     candidate.containerBindings = candidate.containerBindings.filter(binding => binding.state === 'active' || retained.has(binding.ref));
   }
@@ -219,6 +252,13 @@ export function resolveImportPlan(plan, decisions = [], acknowledgments = {}) {
     else if (scopeKey(old.scope) !== scopeKey(rule.scope)) changed.push({ type: 'rule', existing: clone(old), result: clone(rule) });
   }
   for (const [key, rule] of oldRules) if (!resultRules.has(key)) removed.push({ type: 'rule', rule: clone(rule) });
+  const oldExceptions = new Map((plan.existing.exceptions || []).map(item => [exceptionKey(item), item]));
+  for (const [key, item] of resultExceptions) {
+    const old = oldExceptions.get(key);
+    if (!old) added.push({ type: 'exception', exception: clone(item) });
+    else if (scopeKey(old.scope) !== scopeKey(item.scope) || old.enabled !== item.enabled) changed.push({ type: 'exception', existing: clone(old), result: clone(item) });
+  }
+  for (const [key, item] of oldExceptions) if (!resultExceptions.has(key)) removed.push({ type: 'exception', exception: clone(item) });
   for (const ref of candidate.protectedContainerRefs) if (!plan.existing.protectedContainerRefs.includes(ref)) added.push({ type: 'containerProtection', ref });
   for (const ref of plan.existing.protectedContainerRefs) if (!protectedRefs.has(ref)) removed.push({ type: 'containerProtection', ref });
   const finalBindingRefs = new Set(candidate.containerBindings.map(binding => binding.ref));
@@ -229,7 +269,7 @@ export function resolveImportPlan(plan, decisions = [], acknowledgments = {}) {
   if (plan.manyToOne.length) requiredAcknowledgments.push('manyToOne');
   if (plan.recovery) requiredAcknowledgments.push('recovery');
   const preview = {
-    rules: clone(candidate.rules), protectedContainerRefs: clone(candidate.protectedContainerRefs),
+    rules: clone(candidate.rules), exceptions: clone(candidate.exceptions || []), protectedContainerRefs: clone(candidate.protectedContainerRefs),
     added, changed, removed, duplicates: clone(plan.duplicates), excluded: clone(plan.excluded), inactive: candidate.containerBindings.filter(binding => binding.state === 'inactive').map(binding => ({ ref: binding.ref, name: binding.name, ...(plan.inactive.find(entry => entry.ref === binding.ref) || {}) })), manyToOne: clone(plan.manyToOne),
     decisions: plan.conflicts.filter(conflict => choices[conflict.id]).map(conflict => ({ conflictId: conflict.id, choice: choices[conflict.id] })), requiredAcknowledgments,
     ...(plan.source.rules.some(rule => rule.scope.type === 'all') && plan.excluded.length ? { allStoresNotice: 'All stores rules continue to protect Normal browsing and all available named containers, including excluded mappings.' } : {}),

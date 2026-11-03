@@ -19,7 +19,7 @@ export function createClient(transport) {
     requestHostAccess() { return transport.requestHostAccess(); },
     windowContext() { return transport.windowContext(); }
   };
-  for (const action of ['getState','getCookies','getSiteContext','getSiteCookieDomains','saveSiteRule','setSiteProtection','saveConfiguration','previewBurn','startBurn','cancelBurn','dismissOperation','prepareExport','inspectImport','planImport','resolveImport','commitImport','openOptions']) {
+  for (const action of ['getState','getCookies','getSiteContext','getSiteCookieDomains','evaluateCookiePolicy','listExceptions','createException','updateException','setExceptionEnabled','deleteException','planInventoryChoices','commitInventoryChoices','saveSiteRule','saveSiteException','setSiteProtection','saveConfiguration','previewBurn','startBurn','cancelBurn','dismissOperation','prepareExport','inspectImport','planImport','resolveImport','commitImport','openOptions']) {
     client[action] = (payload = {}, revision) => client.request(action, payload, revision);
   }
   return client;

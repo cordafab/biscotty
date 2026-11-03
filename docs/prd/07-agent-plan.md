@@ -1,6 +1,8 @@
 # Agent work plan
 
 This plan defines implementation responsibilities.
+The approved [partition and inventory amendments](partition-exceptions/00-design.md) extend these track assignments.
+Their implementation is present; acceptance and release verification remain incomplete.
 The PRD package itself contains no extension source code.
 The baseline extension is present; the Current Site cookie-domain additions are implemented; release verification remains incomplete.
 
@@ -169,7 +171,7 @@ Publishing remains the release owner's action.
 ## Version 0.1.2 publishing work
 
 Owner: Integration agent, using the existing Track B interfaces.
-Follow [publishing](09-publishing-0.1.md), [observation limits](10-bounded-observation.md), and [request limits](11-bounded-requests.md).
+Historical scope: [publishing](09-publishing-0.1.md), retired observation limits, and [request limits](11-bounded-requests.md).
 
 1. Freeze the bounded observation adapter and request-capacity contracts.
 2. Implement observation limits and mutation admission with their acceptance tests.
@@ -185,3 +187,11 @@ The integration agent updates metadata and release evidence for the patch.
 The [publishing requirements](09-publishing-0.1.md) now identify `0.1.5`; earlier preparation evidence remains historical.
 Version `0.1.4` delivers the publication audit corrections with their focused regression tests.
 Version `0.1.5` verifies restored document identities and terminal cancellation under Track B ownership.
+
+## Frontend refresh integration
+
+The [frontend refresh](12-frontend-refresh.md) uses the existing integration and Track C ownership.
+The integration agent defines selected-store context and site-bound metadata contracts before dependent frontend changes.
+Track C owns popup dialogs, Settings tabs, contextual help, and preserved draft workflows.
+Shared backend changes remain in `src/backend/firefox/views.js`; frontend changes remain in `src/frontend/`.
+Verification includes cross-store authorization, stale reads, tab navigation, and unchanged burner scope.

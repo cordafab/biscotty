@@ -3,7 +3,7 @@ import { exportPortable } from '../../src/core/transfer/index.js';
 // Build valid records at exact portable UTF-8 boundaries, including escaped text.
 export function sizedRecord(targetBytes, overrides = {}) {
   const record = {
-    schemaVersion: 1, revision: 0, containerBindings: [], protectedContainerRefs: [],
+    schemaVersion: 2, revision: 0, containerBindings: [], protectedContainerRefs: [], exceptions: [],
     rules: Array.from({ length: 600 }, (_, index) => ({ domain: 'example.com', includeSubdomains: false, name: `cookie-${index}:"\\é🧁`, path: null, scope: { type: 'all' } })),
     ...overrides
   };

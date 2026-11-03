@@ -1,6 +1,9 @@
 # PRD: Frontend
 
+The approved [frontend refresh](12-frontend-refresh.md) supersedes popup placement, current-store-only controls, and the full-page section layout.
+
 Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
+The approved [Settings inventory](partition-exceptions/01-settings-inventory.md) and [Current Site inventory](partition-exceptions/02-current-site-inventory.md) supersede conflicting observation-based descriptions.
 Owner: Track C.
 Depends on the [module interfaces](01-module-interfaces.md).
 The frontend owns the GUI and calls backend actions.
@@ -11,7 +14,7 @@ It does not own Firefox access or authoritative policy decisions.
 - **UI-01.** The extension MUST provide a toolbar action with a packaged popup menu.
 - **UI-02.** Initial placement MUST request the main toolbar without preventing the user from moving the button.
 - **UI-03.** The menu MUST include Cookie burner, Settings, and the current-site protection view.
-- **UI-04.** The current-site view MUST identify the exact domain target and current store.
+- **UI-04.** The current-site view MUST identify the exact domain target and selected store.
 - **UI-05.** Its status MUST come from saved effective policy, not from the number of existing cookies.
 
 The menu must show one of four site states.
@@ -31,11 +34,11 @@ The interface must not claim that protection guarantees a login session.
 ## Quick protection
 
 - **UI-06.** A normal website shortcut MUST use Firefox's base domain and include its subdomains.
-- **UI-07.** A shortcut MUST affect only the captured current store.
+- **UI-07.** A shortcut MUST affect only the captured selected store.
 - **UI-08.** IP addresses and unknown-suffix local hostnames MUST use an exact-host shortcut.
 - **UI-09.** Bare known public suffixes MUST be rejected.
 - **UI-10.** Non-HTTP/HTTPS pages and missing tab context MUST show an unavailable site control.
-- **UI-11.** The backend MUST revalidate the captured tab, host, store, and revision before a shortcut change.
+- **UI-11.** The backend MUST revalidate the captured tab, host, selected store, and revision before a shortcut change.
 - **UI-12.** A stale context MUST require refresh before the user confirms another protection change.
 
 For example, `shop.example.com` in Work offers “Protect example.com and its subdomains in Work.”
@@ -62,7 +65,8 @@ The editor remains available to change All stores rules or whole-container prote
 
 This feature uses `getSiteCookieDomains` and `saveSiteRule` through the public backend client.
 The [shared action contracts](01-module-interfaces.md#current-site-action-contracts) define the authoritative inputs, views, errors, and token checks.
-The existing summary and quick-protection controls remain above the list.
+The summary and quick-protection controls remain in the main popup.
+View cookies opens the grouped inventory in a separate dialog.
 The summary status does not summarize protection across every listed third-party domain.
 
 - **UI-40.** Each domain row MUST show its canonical cookie domain, stored-cookie count, and pencil control.
@@ -222,7 +226,7 @@ Replace requires an explicit acknowledgment of replaced settings.
 | UI-A14 | Current Site retains its summary and shows one domain, stored-cookie count, and pencil per grouped row. |
 | UI-A15 | Load more reaches every alphabetically ordered snapshot row without duplicates; long domains keep pencils accessible. |
 | UI-A16 | A pencil opens the popup modal with applicable rules and Add rule; whole-container protection remains explained. |
-| UI-A17 | A new rule uses the exact row domain, every name and path, and only the current store. |
+| UI-A17 | A new rule uses the exact row domain, every name and path, and only the selected store. |
 | UI-A18 | Existing rules expose all fields and explain wider domain and store effects before Save. |
 | UI-A19 | Save commits once, closes the modal, and refreshes results; Cancel and closure before Save change no protection. |
 | UI-A20 | Popup reopening reconciles an accepted save whose reply was lost; the Settings draft workflow remains unchanged. |

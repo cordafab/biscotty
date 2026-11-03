@@ -49,31 +49,13 @@ export function createFirefoxAdapter(api = browser) {
         else source.addListener(handler);
         subscriptions.push(() => source.removeListener(handler));
       }
-      function reduce(kind, details) {
-        let url;
-        try { url = new URL(details.url); } catch {}
-        const supported = url && ['http:', 'https:'].includes(url.protocol);
-        if (!supported && details.frameId !== 0) return;
-        const ancestor = details.frameAncestors?.[0];
-        listener({
-          kind: supported ? kind : 'unsupported', tabId: details.tabId,
-          frameId: details.frameId, parentFrameId: details.parentFrameId ?? ancestor?.frameId,
-          documentId: details.documentId ?? null,
-          parentDocumentId: details.parentDocumentId ?? ancestor?.documentId ?? null,
-          host: supported ? url.hostname.toLowerCase().replace(/\.$/, '') : null,
-          scheme: supported ? url.protocol : null, storeId: details.cookieStoreId ?? null,
-          requestId: details.requestId ?? null, requestType: details.type ?? null,
-          incognito: details.incognito === true,
-          restored: kind === 'committed' && Boolean(details.transitionQualifiers?.includes('forward_back'))
-        });
+      function navigation(kind, details) {
+        if (details.frameId !== 0 || !Number.isInteger(details.tabId)) return;
+        listener({ kind, tabId: details.tabId, frameId: 0 });
       }
-      const requestFilter = { urls: origins };
-      subscribe(api.webRequest?.onBeforeRequest, details => reduce('request', details), requestFilter);
-      subscribe(api.webRequest?.onCompleted, details => reduce('requestFinished', details), requestFilter);
-      subscribe(api.webRequest?.onErrorOccurred, details => reduce('requestFinished', details), requestFilter);
-      subscribe(api.webNavigation?.onBeforeNavigate, details => reduce('beforeNavigate', details));
-      subscribe(api.webNavigation?.onCommitted, details => reduce('committed', details));
-      subscribe(api.webNavigation?.onErrorOccurred, details => reduce('navigationError', details));
+      subscribe(api.webNavigation?.onBeforeNavigate, details => navigation('beforeNavigate', details));
+      subscribe(api.webNavigation?.onCommitted, details => navigation('committed', details));
+      subscribe(api.webNavigation?.onErrorOccurred, details => navigation('navigationError', details));
       subscribe(api.tabs.onRemoved, tabId => listener({ kind: 'closed', tabId }));
       return () => subscriptions.forEach(unsubscribe => unsubscribe());
     },
@@ -87,8 +69,8 @@ export function createFirefoxAdapter(api = browser) {
     },
     async getAccess() {
       try {
-        const granted = await api.permissions.contains({ permissions: ['cookies', 'storage', 'contextualIdentities', 'publicSuffix', 'webRequest', 'webNavigation'], origins });
-        const available = Boolean(api.cookies && api.publicSuffix && api.contextualIdentities && api.webRequest && api.webNavigation);
+        const granted = await api.permissions.contains({ permissions: ['cookies', 'storage', 'contextualIdentities', 'publicSuffix', 'webNavigation'], origins });
+        const available = Boolean(api.cookies && api.publicSuffix && api.contextualIdentities && api.webNavigation);
         return { granted, available, reason: !granted ? 'Restore website access in Firefox Add-ons → Biscotty → Permissions.' : !available ? 'Required Firefox features are unavailable.' : '' };
       } catch { return { granted: false, available: false, reason: 'Firefox permissions could not be checked.' }; }
     },

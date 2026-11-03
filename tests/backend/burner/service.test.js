@@ -12,6 +12,26 @@ async function setup(options) {
   return { adapter, app, request, state };
 }
 const removes = adapter => adapter.calls.filter(call => call.type === 'remove');
+test('preview yields during a scan of protected cookies', async () => {
+  const s = await setup();
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule()];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  let scanned = 0, scannedWhenTimerRan = null;
+  const rows = Array.from({ length: 250 }, () => {
+    const row = cookie();
+    Object.defineProperty(row, 'domain', { get() {
+      if (++scanned === 1) setTimeout(() => { scannedWhenTimerRan = scanned; }, 0);
+      return 'example.com';
+    } });
+    return row;
+  });
+  s.adapter.listCookies = async storeId => storeId === 'firefox-default' ? rows : [];
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true);
+  assert.equal(preview.data.ruleProtected, rows.length);
+  assert.ok(scannedWhenTimerRan > 0 && scannedWhenTimerRan < rows.length);
+});
 for (const boundary of ['result', 'marker']) test(`BURN-A18 cancellation during terminal ${boundary} persistence preserves a dismissible result`, async () => {
   const s = await setup({ cookies: { 'firefox-default': [cookie()] } });
   let release, enter;
@@ -187,4 +207,46 @@ test('BURN-A06 same-revision native changes cannot reuse a preview after state r
   changed.rules = [rule()]; s.adapter.setRecord(changed); await s.state();
   const result = await s.request('startBurn', { previewToken: preview.data.previewToken });
   assert.equal(result.ok, false); assert.equal(removes(s.adapter).length, 0);
+});
+
+test('PEX-A01/A07 preview permits proven exception and skips ambiguous protected parent', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [
+    cookie({ name: 'exact', partitionKey: { topLevelSite: 'https://other.com' } }),
+    cookie({ name: 'child', domain: 'shop.example.com', partitionKey: { topLevelSite: 'https://other.com' } }),
+    cookie({ name: 'plain' })
+  ] } });
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule({ includeSubdomains: true })];
+  record.exceptions = [
+    { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: 'exact', path: null, scope: { type: 'all' }, enabled: true },
+    { cookieDomain: 'shop.example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: 'child', path: null, scope: { type: 'all' }, enabled: true }
+  ];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true, JSON.stringify(preview));
+  assert.equal(preview.data.eligibleAttempts, 1);
+  assert.equal(preview.data.exceptionEligible, 1);
+  assert.equal(preview.data.exceptionSafetySkips, 1);
+  assert.deepEqual(preview.data.exceptionExamples[0].overriddenRuleIndexes, [0]);
+  assert.equal(preview.data.ruleProtected, 1);
+  await s.request('startBurn', { previewToken: preview.data.previewToken });
+  await s.app.burner.waitForIdle();
+  assert.deepEqual(removes(s.adapter).map(item => item.name), ['exact']);
+});
+
+test('PEX-A04 missing native domain facts preserve allow-rule protection', async () => {
+  const s = await setup({ cookies: { 'firefox-default': [cookie({ partitionKey: { topLevelSite: 'https://other.com' } })] } });
+  const { record, catalogGeneration } = s.app.configuration.readConfiguration();
+  record.rules = [rule()];
+  record.exceptions = [{ cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.com', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true }];
+  await s.app.configuration.commitConfiguration({ expectedRevision: record.revision, expectedCatalogGeneration: catalogGeneration, candidate: record });
+  const classify = s.adapter.classifyHost;
+  const list = s.adapter.listCookies;
+  let listingStarted = false;
+  s.adapter.listCookies = async storeId => { listingStarted = true; return list(storeId); };
+  s.adapter.classifyHost = async host => { if (listingStarted && host === 'other.com') throw new Error('unavailable'); return classify(host); };
+  const preview = await s.request('previewBurn');
+  assert.equal(preview.ok, true, JSON.stringify(preview));
+  assert.equal(preview.data.eligibleAttempts, 0);
+  assert.equal(preview.data.ruleProtected, 1);
 });

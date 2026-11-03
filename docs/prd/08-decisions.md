@@ -111,7 +111,7 @@ This authorizes implementation and release preparation, without authorizing publ
 | Decision | Required result | Main specification |
 | --- | --- | --- |
 | PUB-D01 | Deliver `0.1.2` with compatible configuration and protocol formats. | [Publishing](09-publishing-0.1.md). |
-| PUB-D02 | Bound page observation and report partial coverage after omitted activity. | [Observation](10-bounded-observation.md). |
+| PUB-D02 | Bound page observation and report partial coverage after omitted activity. | Observation. |
 | PUB-D03 | Reject mutation capacity before execution and retain bounded digest-based deduplication. | [Requests](11-bounded-requests.md). |
 | PUB-D04 | Explain all permissions and passive session metadata in the release material. | [Publishing](09-publishing-0.1.md). |
 | PUB-D05 | Preserve signed verification and release-owner gates as pending until evidence exists. | [Publishing](09-publishing-0.1.md). |
@@ -144,7 +144,7 @@ This authorization covers code, regression tests, and affected requirements.
 | FIX-D01 | Compact exports and complete-candidate byte checks enforce the existing 2 MiB portable limit. | [Protection](02-protection-and-settings.md), [Transfer](05-configuration-transfer.md). |
 | FIX-D02 | Existing protection and native container reconciliation remain usable when portable size exceeds the limit. | [Protection](02-protection-and-settings.md). |
 | FIX-D03 | Imported references use explicit mapping decisions without inherited-object interpretation. | [Frontend](04-frontend.md), [Transfer](05-configuration-transfer.md). |
-| FIX-D04 | Fresh observed navigation recovers coverage after eviction without upgrading other documents. | [Observation](10-bounded-observation.md). |
+| FIX-D04 | Fresh observed navigation recovers coverage after eviction without upgrading other documents. | Observation. |
 
 FIX-D01 adds a complete-export check to the earlier editable-data and import-text limits.
 Configuration, portable file, and protocol versions remain `1`.
@@ -177,3 +177,47 @@ Restoration preserves matching committed documents and discards unverifiable or 
 Cancellation cannot change a terminal result during storage or marker cleanup.
 Configuration, portable file, protocol, permissions, and Firefox minimum versions remain unchanged.
 Git delivery is authorized; signed extension publication remains separate.
+
+## Frontend refresh — 3 November 2026
+
+The user selected the first HTML concept and authorized English UI implementation and corresponding PRD maintenance.
+The [frontend refresh PRD](12-frontend-refresh.md) records the implemented scope and acceptance cases.
+
+| Decision | Approved result |
+| --- | --- |
+| UX-D01 | Use the action-first concept with concise English controls. |
+| UX-D02 | Keep the current domain while selecting protection and cookie inventory in another available store. |
+| UX-D03 | Keep the active tab in its original container. |
+| UX-D04 | Open cookie groups and expandable metadata in a dialog with the main domain as its prominent heading. |
+| UX-D05 | Separate unpartitioned cookies from known third-party jars and explain possible shared use. |
+| UX-D06 | Use Cookies, Rules, Containers, Import / Export, and Status tabs while preserving Settings drafts. |
+| UX-D07 | Keep critical scope visible; place additional explanations behind circular info controls. |
+| UX-D08 | Retain global burner scope, preview, explicit confirmation, and the existing safety checks. |
+
+UX-D02 supersedes Q29 and Q34 only for selecting the target store.
+Their preservation of other scopes and inherited protection remains required.
+The change does not authorize cookie values, browser privacy-setting changes, or automatic deletion.
+
+The subsequent visual review requested larger status badges, smaller info circles, and a larger Settings gear.
+The [frontend refresh sizing refinement](12-frontend-refresh.md#visual-sizing-refinement) records the implemented dimensions.
+
+## Version 0.2.1 metadata increment
+
+Decision date: 3 November 2026.
+The user requested a patch increment after the frontend implementation and visual refinements.
+
+| Decision | Approved result |
+| --- | --- |
+| UX-D09 | Increment source and package metadata from `0.2.0` to `0.2.1` and regenerate the unsigned package. |
+
+The request does not change configuration or protocol versions.
+
+## Documentation cleanup — 3 November 2026
+
+The user authorized removal of superseded specifications, older audit evidence, standalone audit probes, and all frontend prototypes.
+The partition implementation proposal is retired because current contracts and code replace its guidance.
+OBS-01 through OBS-17 and OBS-A01 through OBS-A10 are retired; their identifiers remain reserved.
+OPT, IOBS, and ICTL identifiers in the removed proposal remain reserved.
+The [Current Site inventory amendment](partition-exceptions/02-current-site-inventory.md) replaces request-observation requirements.
+Historical decision rows describe earlier behavior; they do not reinstate retired observation requirements.
+Current tests, current audit evidence, and pending release obligations remain required.

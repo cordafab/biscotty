@@ -1,7 +1,7 @@
 import { BiscottyError } from '../../core/errors.js';
-export const ACTIONS = Object.freeze(['getState', 'getCookies', 'getSiteContext', 'getSiteCookieDomains', 'saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'cancelBurn', 'dismissOperation', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport', 'openOptions', 'requestHostAccess']);
-const revisions = new Set(['saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport']);
-const mutations = new Set(['saveSiteRule', 'setSiteProtection', 'saveConfiguration', 'startBurn', 'commitImport']);
+export const ACTIONS = Object.freeze(['getState', 'getCookies', 'getSiteContext', 'getSiteCookieDomains', 'evaluateCookiePolicy', 'listExceptions', 'createException', 'updateException', 'setExceptionEnabled', 'deleteException', 'planInventoryChoices', 'commitInventoryChoices', 'saveSiteRule', 'saveSiteException', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'cancelBurn', 'dismissOperation', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport', 'openOptions', 'requestHostAccess']);
+const revisions = new Set(['createException', 'updateException', 'setExceptionEnabled', 'deleteException', 'planInventoryChoices', 'commitInventoryChoices', 'saveSiteRule', 'saveSiteException', 'setSiteProtection', 'saveConfiguration', 'previewBurn', 'startBurn', 'prepareExport', 'inspectImport', 'planImport', 'resolveImport', 'commitImport']);
+const mutations = new Set(['createException', 'updateException', 'setExceptionEnabled', 'deleteException', 'commitInventoryChoices', 'saveSiteRule', 'saveSiteException', 'setSiteProtection', 'saveConfiguration', 'startBurn', 'commitImport']);
 const recoveryActions = new Set(['inspectImport', 'planImport', 'resolveImport', 'commitImport']);
 export const REQUEST_LIMITS = Object.freeze({ entries: 128, bytes: 8 * 1024 * 1024, ttl: 15 * 60 * 1000 });
 const encodedSize = value => new TextEncoder().encode(JSON.stringify(value)).length;

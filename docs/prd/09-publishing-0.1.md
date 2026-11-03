@@ -5,7 +5,7 @@ Delivery version: `0.1.5`.
 Owner: Integration agent.
 Paths: `manifest.json`, `package.json`, `scripts/`, `README.md`, and release documentation.
 Dependencies: [product](00-product.md), [interfaces](01-module-interfaces.md), and [release requirements](06-verification-and-release.md).
-Security work follows [observation limits](10-bounded-observation.md) and [request limits](11-bounded-requests.md).
+Current security work follows [stored-cookie inventory](partition-exceptions/02-current-site-inventory.md) and [request limits](11-bounded-requests.md).
 
 ## Purpose and scope
 

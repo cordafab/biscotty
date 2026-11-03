@@ -1,17 +1,71 @@
+import { setupSettingsTabs } from './tabs.js';
 import { editableRule } from './rule-form.js';
+import { createExceptionFields } from './exception-form.js';
 import { client } from '../backend/client/native.js';
-import { createEditorModel, createImportModel, operationActive, operationTitle, storeLabel, reviewInactiveDecision } from './models.js';
-import { element as el, button, field, checkbox, replace, notice, showError } from './dom.js';
+import { createEditorModel, createImportModel, createInventoryChoicesModel, operationActive, operationTitle, storeLabel, reasonText, groupCookieInventory, reviewInactiveDecision } from './models.js';
+import { element as el, button, field, checkbox, replace, notice, showError, helpControl } from './dom.js';
 const $ = id => document.getElementById(id);
+setupSettingsTabs();
 let busy = false;
 let rulePage = 0;
+let exceptionPage = 0;
+let containerPage = 0;
 let ruleIndex = null;
+let ruleRevision = null;
+let originalRule = null;
 let formDirty = false;
 let nextPageToken;
+let cookieQuery;
+let cookieResult = null;
+let cookieRevision = null, cookieCatalogGeneration = null;
+const selectedCookies = new Set();
 let importVisible = false;
 let discardAction;
+let exceptionIndex = null, exceptionRevision = null, exceptionOriginal = null, exceptionFields;
 const model = createEditorModel(client, render);
 const importer = createImportModel(client, model, renderImport);
+const inventory = createInventoryChoicesModel(client, model, render);
+const exceptionList = el('div', { id: 'exception-list' });
+const exceptionSection = el('section', { className: 'card', 'aria-labelledby': 'exceptions-heading', hidden: true }, el('h2', { id: 'exceptions-heading' }, 'Partition exceptions ', helpControl('Partition exceptions', 'An enabled exception can make known third-party partitioned cookies burnable even when an allow rule matches. Unpartitioned cookies cannot receive site-specific exceptions. Whole-container protection and deletion safety still apply.')), button('Add exception', () => openException(), { id: 'add-exception' }), exceptionList);
+$('rules-section').after(exceptionSection);
+const sectionHelp = [
+  ['rules-heading', 'Allow rules', 'Rules combine to protect matching cookies. Selected-store rules have no effect in other stores. Changes remain a draft until Save changes.'],
+  ['containers-heading', 'Container protection', 'Skip a named container in full during every burn. Normal browsing uses per-rule protection.'],
+  ['cookies-heading', 'Stored cookie groups', 'A third-party jar groups cookies from another domain for one main site and container. Unpartitioned cookies may be shared across sites in the same container; Firefox cannot reliably identify every site using them. Snapshots can change after capture. Cookie values are never shown.'],
+  ['transfer-heading', 'Configuration transfer', 'Transfer saved protection in a local JSON file. Cookie values and native container identities are excluded. Import requires explicit mapping, conflict decisions and final review.']
+];
+for (const [id, title, text] of sectionHelp) $(id).append(' ', helpControl(title, text));
+
+const exceptionDialog = el('dialog', { 'aria-labelledby': 'exception-dialog-heading' });
+const exceptionFieldsArea = el('div');
+const exceptionError = el('div', { role: 'alert', tabindex: '-1' });
+const exceptionForm = el('form', {}, el('h2', { id: 'exception-dialog-heading' }, 'Partition exception'), el('p', {}, 'This creates a persistent policy that may apply to cookies recreated later. Review the domains and stores before saving the draft.'), exceptionFieldsArea, exceptionError, el('div', { className: 'actions' }, el('button', { type: 'submit', className: 'primary' }, 'Keep in draft'), button('Cancel exception', () => { formDirty = false; exceptionDialog.close(); })));
+exceptionDialog.append(exceptionForm); document.body.append(exceptionDialog);
+exceptionForm.addEventListener('input', () => { formDirty = true; });
+exceptionDialog.addEventListener('cancel', () => { formDirty = false; });
+exceptionForm.addEventListener('submit', event => {
+  event.preventDefault();
+  try {
+    const value = exceptionFields.read();
+    if ((exceptionIndex !== null && JSON.stringify(model.draft?.exceptions?.[exceptionIndex]) !== exceptionOriginal) || !model.edit(draft => { if (exceptionIndex === null) draft.exceptions.push(value); else draft.exceptions[exceptionIndex] = value; }, exceptionRevision)) throw new Error('Saved settings changed while this form was open. Close it and review the current exceptions before editing again.');
+    formDirty = false; exceptionDialog.close();
+  } catch (error) { showError(error, exceptionError); }
+});
+function openException(index = null) {
+  exceptionIndex = index; exceptionRevision = model.state.revision;
+  const value = index === null ? { cookieDomain: '', cookieIncludeSubdomains: false, topLevelDomain: '', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true } : model.draft.exceptions[index];
+  exceptionOriginal = index === null ? null : JSON.stringify(value);
+  exceptionFields = createExceptionFields(value, model.state.stores); replace(exceptionFieldsArea, exceptionFields.node); replace(exceptionError); formDirty = false; exceptionDialog.showModal();
+}
+function renderExceptions() {
+  exceptionSection.hidden = !Array.isArray(model.draft?.exceptions);
+  if (exceptionSection.hidden) return;
+  $('add-exception').disabled = busy || !model.canEdit;
+  const pages = Math.max(1, Math.ceil(model.draft.exceptions.length / 50));
+  exceptionPage = Math.min(exceptionPage, pages - 1);
+  const rows = model.draft.exceptions.map((item, index) => ({ item, index })).slice(exceptionPage * 50, (exceptionPage + 1) * 50).map(({ item, index }) => el('div', { className: 'row' }, el('div', {}, el('strong', {}, `${item.cookieDomain}${item.cookieIncludeSubdomains ? ' and subdomains' : ''} in ${item.topLevelDomain}${item.topLevelIncludeSubdomains ? ' and subdomains' : ''}`), el('p', { className: 'muted' }, `${item.enabled ? 'Enabled' : 'Disabled'} · ${item.scheme === 'all' ? 'HTTP and HTTPS' : item.scheme.toUpperCase()} · ${describeScope(item.scope)}`)), el('div', { className: 'actions' }, button('Edit', () => openException(index), { disabled: busy || !model.canEdit, 'aria-label': `Edit exception for ${item.cookieDomain} in ${item.topLevelDomain}` }), button(item.enabled ? 'Disable' : 'Enable', () => model.edit(draft => { draft.exceptions[index].enabled = !draft.exceptions[index].enabled; }), { disabled: busy || !model.canEdit }), button('Remove', () => model.edit(draft => draft.exceptions.splice(index, 1)), { disabled: busy || !model.canEdit, 'aria-label': `Remove exception for ${item.cookieDomain} in ${item.topLevelDomain}` }))));
+  replace(exceptionList, rows.length ? rows : el('p', { className: 'empty' }, 'No partition exceptions.'), pages > 1 ? el('div', { className: 'actions' }, button('Previous exceptions', () => { exceptionPage--; renderExceptions(); }, { disabled: exceptionPage === 0 }), el('small', {}, `Page ${exceptionPage + 1} of ${pages}`), button('Next exceptions', () => { exceptionPage++; renderExceptions(); }, { disabled: exceptionPage === pages - 1 })) : null);
+}
 let labelCacheStores;
 let labelCache = new Map();
 function labels() {
@@ -31,6 +85,19 @@ function storeOptionLabel(store) { return labels().get(store.ref) || storeLabel(
 const labelRef = ref => labels().get(ref) || importer.plan?.preview?.inactive?.find(item => item.ref === ref)?.name || importer.inspection?.containers?.find(item => item.ref === ref)?.name || 'Retained inactive container';
 const describeScope = scope => scope?.type === 'all' ? 'All stores' : `Selected stores: ${(scope?.storeRefs || []).map(labelRef).join(', ')}`;
 const describeRule = rule => `${rule.domain}${rule.includeSubdomains ? ' and subdomains' : ' (exact domain)'} · ${rule.name === null ? 'Every name' : `Exact name: “${rule.name}”`} · ${rule.path === null ? 'Every path' : `Exact path: “${rule.path}”`} · ${describeScope(rule.scope)}`;
+const describeException = item => `${item.cookieDomain}${item.cookieIncludeSubdomains ? ' and subdomains' : ' (exact domain)'} in ${item.topLevelDomain}${item.topLevelIncludeSubdomains ? ' and subdomains' : ' (exact site)'} · ${item.scheme === 'all' ? 'HTTP and HTTPS' : item.scheme.toUpperCase()} · ${item.name === null ? 'Every name' : `Exact name: “${item.name}”`} · ${item.path === null ? 'Every path' : `Exact path: “${item.path}”`} · ${describeScope(item.scope)} · ${item.enabled ? 'enabled' : 'disabled'}`;
+const describeAffectedScope = affected => [affected.domain ? `Cookie domain: ${affected.domain}` : null, affected.topLevelDomain ? `Main site: ${affected.topLevelDomain}` : null, affected.scheme ? `Scheme: ${affected.scheme}` : null, Object.hasOwn(affected, 'name') ? affected.name === null ? 'Every name' : `Exact name: “${affected.name}”` : null, Object.hasOwn(affected, 'path') ? affected.path === null ? 'Every path' : `Exact path: “${affected.path}”` : null, affected.partitions === 'all' ? 'All partitions' : null, affected.scope ? describeScope(affected.scope) : null].filter(Boolean).join(' · ');
+function describeInventoryChanges(configuration, draft) {
+  if (!configuration || !draft) return [];
+  const changes = [];
+  for (const [key, label, describe] of [['rules', 'allow rule', describeRule], ['exceptions', 'exception', describeException]]) {
+    const before = draft[key] || [], after = configuration[key] || [];
+    const beforeKeys = new Set(before.map(item => JSON.stringify(item))), afterKeys = new Set(after.map(item => JSON.stringify(item)));
+    for (const item of before) if (!afterKeys.has(JSON.stringify(item))) changes.push(`Remove or replace ${label}: ${describe(item)}`);
+    for (const item of after) if (!beforeKeys.has(JSON.stringify(item))) changes.push(`Add or update ${label}: ${describe(item)}`);
+  }
+  return changes;
+}
 async function act(action) {
   if (busy) return;
   busy = true; replace($('messages')); render();
@@ -39,7 +106,7 @@ async function act(action) {
   finally { busy = false; render(); }
 }
 function discardThen(action) {
-  if (!model.dirty && !formDirty) return action();
+  if (!model.dirty && !formDirty && !inventory.dirty) return action();
   discardAction = action;
   $('discard-dialog').showModal();
 }
@@ -47,16 +114,22 @@ function render() {
   const focusedId = document.activeElement?.id;
   const state = model.state;
   if (!state) return;
-  $('draft-status').textContent = model.saving ? 'Saving complete configuration…' : model.stale ? 'Saved settings changed elsewhere. Your draft is preserved; refresh to review.' : model.dirty ? 'Unsaved draft · saved protection is still active' : 'All changes saved';
-  $('save').disabled = busy || !model.canEdit || !model.dirty || model.saving;
-  $('cancel').disabled = busy || !model.dirty;
+  if (cookieResult && (state.revision !== cookieRevision || state.catalogGeneration !== cookieCatalogGeneration || !state.capabilities.canReadCookies)) {
+    cookieResult = null; nextPageToken = null; $('next-cookies').hidden = true;
+    replace($('cookie-results'), notice('Saved settings or access changed. Refresh the inventory before relying on its contents.'));
+  }
+  $('draft-status').textContent = model.saving || inventory.pending ? 'Working with the complete configuration…' : model.stale ? 'Saved settings changed elsewhere. Your draft is preserved; refresh to review.' : model.dirty || inventory.dirty ? 'Unsaved draft · saved protection is still active' : 'All changes saved';
+  $('save').disabled = busy || !model.canEdit || (!model.dirty && !inventory.dirty) || (inventory.dirty && !cookieResult) || model.saving || inventory.pending;
+  $('save').textContent = inventory.dirty && (!inventory.current || inventory.plan.conflicts?.length) ? 'Review choices' : 'Save changes';
+  $('cancel').disabled = busy || (!model.dirty && !inventory.dirty);
   $('add-rule').disabled = busy || !model.canEdit;
   $('export').disabled = busy || !state.configuration || state.exportStatus?.canExport === false;
   $('start-import').disabled = busy || model.locked || (!model.canEdit && !state.capabilities.canRecoverConfiguration);
   $('load-cookies').disabled = busy || !state.capabilities.canReadCookies;
   $('next-cookies').disabled = busy;
   for (const control of document.querySelectorAll('.create-cookie-rule')) control.disabled = busy || !model.canEdit;
-  renderAvailability(); renderRules(); renderContainers(); updateStoreFilter(); renderImport();
+  $('status-indicator').textContent = state.capabilities.reason || state.configurationStatus !== 'valid' || model.stale || state.exportStatus?.canExport === false ? 'Status · Attention' : 'Status · Ready';
+  renderAvailability(); renderRules(); renderExceptions(); renderContainers(); updateStoreFilter(); renderImport(); if (cookieResult) renderCookieResults();
   if (focusedId && $(focusedId) && !$(focusedId).disabled) $(focusedId).focus({ preventScroll: true });
 }
 function renderAvailability() {
@@ -84,7 +157,9 @@ function renderRules() {
 function renderContainers() {
   const stores = (model.state.stores || []).filter(store => store.kind === 'container');
   const nodes = [];
-  for (const store of stores) {
+  const pages = Math.max(1, Math.ceil(stores.length / 30));
+  containerPage = Math.min(containerPage, pages - 1);
+  for (const store of stores.slice(containerPage * 30, (containerPage + 1) * 30)) {
     const active = store.availability === 'available';
     const protection = checkbox(`${storeLabel(store)}${active ? '' : ' · inactive'}`, model.draft?.protectedContainerRefs.includes(store.ref), { id: `container-protection-${store.ref}`, disabled: busy || !model.canEdit, onchange: event => model.edit(draft => { draft.protectedContainerRefs = event.target.checked ? [...new Set([...draft.protectedContainerRefs, store.ref])] : draft.protectedContainerRefs.filter(ref => ref !== store.ref); }) });
     const container = el('div', {}, protection.node);
@@ -100,12 +175,12 @@ function renderContainers() {
         const protection = decision.action === 'map'
           ? impact.transfersWholeContainerProtection ? `Whole-container protection transfers to ${labelRef(decision.targetRef)}. Existing destination protection is preserved.` : impact.destinationAlreadyProtected ? `${labelRef(decision.targetRef)} remains protected in full.` : 'This mapping does not add whole-container protection.'
           : impact.removesWholeContainerProtection ? 'Whole-container protection on this inactive reference will be removed.' : 'This reference has no whole-container protection to remove.';
-        container.append(notice(`${decision.action === 'map' ? `After Save, this reference maps to ${labelRef(decision.targetRef)}.` : 'Remove this reference from every affected rule before Save. Empty selected scopes must be removed or edited.'} ${protection}`), pagedReview('Affected rules and resulting scope', impact.affectedRules, item => `${describeRule(item.rule)} → ${item.emptyScope ? 'No stores remain: remove this rule or select an available store.' : `Resulting selected stores: ${item.resultingStoreRefs.map(labelRef).join(', ')}`}${item.requiresEdit && !item.emptyScope ? ' Edit this rule to remove the inactive reference before Save.' : ''}`));
+        container.append(notice(`${decision.action === 'map' ? `After Save, this reference maps to ${labelRef(decision.targetRef)}. Enabled exceptions can make cookies burnable in that store.` : 'Remove this reference from every affected rule and exception before Save. Empty selected scopes must be removed or edited.'} ${protection}`), pagedReview('Affected rules and resulting scope', impact.affectedRules, item => `${describeRule(item.rule)} → ${item.emptyScope ? 'No stores remain: remove this rule or select an available store.' : `Resulting selected stores: ${item.resultingStoreRefs.map(labelRef).join(', ')}`}${item.requiresEdit && !item.emptyScope ? ' Edit this rule to remove the inactive reference before Save.' : ''}`), pagedReview('Affected exceptions and resulting scope', impact.affectedExceptions, item => `${describeException(item.exception)} → ${item.emptyScope ? 'No stores remain: remove this exception or select an available store.' : `Resulting selected stores: ${item.resultingStoreRefs.map(labelRef).join(', ')}`}${item.requiresEdit && !item.emptyScope ? ' Edit this exception to remove the inactive reference before Save.' : ''}`));
       }
     }
     nodes.push(container);
   }
-  replace($('containers'), nodes.length ? nodes : el('p', { className: 'empty' }, 'No named containers are available.'));
+  replace($('containers'), nodes.length ? nodes : el('p', { className: 'empty' }, 'No named containers are available.'), pages > 1 ? el('div', { className: 'actions' }, button('Previous containers', () => { containerPage--; renderContainers(); }, { disabled: containerPage === 0 }), el('small', {}, `Page ${containerPage + 1} of ${pages}`), button('Next containers', () => { containerPage++; renderContainers(); }, { disabled: containerPage === pages - 1 })) : null);
 }
 function updateStoreFilter() {
   const select = $('cookie-store');
@@ -115,7 +190,9 @@ function updateStoreFilter() {
 }
 function openRule(index = null, seed) {
   ruleIndex = index;
+  ruleRevision = model.state.revision;
   const rule = seed || (index === null ? { domain: '', includeSubdomains: false, name: null, path: null, scope: { type: 'all' } } : model.draft.rules[index]);
+  originalRule = index === null ? null : JSON.stringify(rule);
   $('rule-dialog-heading').textContent = index === null ? 'Add allow rule to draft' : 'Edit allow rule in draft';
   $('rule-domain').value = rule.domain;
   $('rule-subdomains').checked = rule.includeSubdomains;
@@ -133,7 +210,9 @@ $('rule-form').addEventListener('submit', event => {
   const selected = [...$('rule-store-options').querySelectorAll('input:checked')].map(input => input.value);
   if ($('rule-scope').value === 'selected' && !selected.length) return showError(new Error('Select at least one store.'), $('rule-errors'));
   const rule = editableRule({ domain: $('rule-domain').value, includeSubdomains: $('rule-subdomains').checked, anyName: $('rule-any-name').checked, name: $('rule-name').value, anyPath: $('rule-any-path').checked, path: $('rule-path').value, scope: $('rule-scope').value, storeRefs: selected });
-  model.edit(draft => { if (ruleIndex === null) draft.rules.push(rule); else draft.rules[ruleIndex] = rule; });
+  if ((ruleIndex !== null && JSON.stringify(model.draft?.rules[ruleIndex]) !== originalRule) || !model.edit(draft => { if (ruleIndex === null) draft.rules.push(rule); else draft.rules[ruleIndex] = rule; }, ruleRevision)) {
+    return showError(new Error('Saved settings changed while this form was open. Close it and review the current rules before editing again.'), $('rule-errors'));
+  }
   formDirty = false; $('rule-dialog').close();
 });
 $('rule-any-name').addEventListener('change', event => { $('rule-name').disabled = event.target.checked; });
@@ -143,23 +222,67 @@ $('close-rule').addEventListener('click', () => { formDirty = false; $('rule-dia
 $('rule-dialog').addEventListener('cancel', () => { formDirty = false; });
 $('add-rule').addEventListener('click', () => openRule());
 $('rule-search').addEventListener('input', () => { rulePage = 0; renderRules(); });
-$('save').addEventListener('click', () => act(() => model.save()));
-$('cancel').addEventListener('click', () => discardThen(() => act(() => model.cancel(true))));
-$('refresh').addEventListener('click', () => discardThen(() => act(() => model.refresh({ discard: true }))));
+$('save').addEventListener('click', () => act(() => inventory.dirty ? inventory.current && !inventory.plan.conflicts?.length ? inventory.commit() : inventory.review() : model.save()));
+$('cancel').addEventListener('click', () => discardThen(() => act(async () => { inventory.clear(); selectedCookies.clear(); await model.cancel(true); })));
+$('refresh').addEventListener('click', () => discardThen(() => act(async () => { inventory.clear(); selectedCookies.clear(); await model.refresh({ discard: true }); })));
 $('confirm-discard').addEventListener('click', () => { $('discard-dialog').close(); formDirty = false; const action = discardAction; discardAction = null; action?.(); });
 $('keep-draft').addEventListener('click', () => { discardAction = null; $('discard-dialog').close(); });
-window.addEventListener('beforeunload', event => { if (model.dirty || formDirty) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (model.dirty || formDirty || inventory.dirty) { event.preventDefault(); event.returnValue = ''; } });
 $('request-access').addEventListener('click', () => {
   const request = client.requestHostAccess();
   act(async () => { const result = await request; if (!result.granted) replace($('messages'), notice(result.guidance)); await model.refresh(); });
 });
 async function loadCookies(pageToken) {
-  const result = await client.getCookies({ ...( $('cookie-store').value ? { storeRefs: [$('cookie-store').value] } : {}), search: $('cookie-search').value, pageSize: 100, ...(pageToken ? { pageToken } : {}) });
+  if (!pageToken) cookieQuery = { ...($('cookie-store').value ? { storeRefs: [$('cookie-store').value] } : {}), search: $('cookie-search').value, pageSize: 100 };
+  const revision = model.state.revision, catalogGeneration = model.state.catalogGeneration;
+  let result;
+  try {
+    result = await client.getCookies({ ...cookieQuery, ...(pageToken ? { pageToken } : {}) });
+    if (model.state.revision !== revision || model.state.catalogGeneration !== catalogGeneration || !model.state.capabilities.canReadCookies) throw new Error('Saved settings or access changed during inventory capture.');
+  }
+  catch (error) { cookieResult = null; nextPageToken = null; $('next-cookies').hidden = true; replace($('cookie-results'), notice('This inventory could not be captured or continued. Refresh before relying on it.', 'error')); throw error; }
   nextPageToken = result.nextPageToken; $('next-cookies').hidden = !nextPageToken;
-  const rows = result.cookies.map(cookie => el('div', { className: 'row' }, el('div', {}, el('p', {}, el('strong', {}, cookie.domain)), el('p', {}, `Name: “${cookie.name}” · Path: “${cookie.path}”`), el('p', { className: 'muted' }, `${labelRef(cookie.storeRef)} · ${cookie.partitionLabel || 'Unpartitioned'} · ${cookie.protected ? 'Protected' : 'Unprotected'}`), el('small', {}, [cookie.secure ? 'Secure' : '', cookie.httpOnly ? 'HttpOnly' : '', cookie.session ? 'Session' : 'Persistent'].filter(Boolean).join(' · '))), button('Create rule', () => openRule(null, { domain: cookie.domain.replace(/^\./, ''), includeSubdomains: false, name: cookie.name, path: cookie.path, scope: { type: 'selected', storeRefs: [cookie.storeRef] } }), { className: 'create-cookie-rule', disabled: !model.canEdit, 'aria-label': `Create draft rule for ${cookie.name} on ${cookie.domain}` })));
-  replace($('cookie-results'), rows.length ? rows : el('p', { className: 'empty' }, 'No matching cookie metadata.'));
+  cookieResult = result; cookieRevision = revision; cookieCatalogGeneration = catalogGeneration; selectedCookies.clear(); renderCookieResults();
 }
-$('cookie-search-form').addEventListener('submit', event => { event.preventDefault(); act(() => loadCookies()); });
+function renderCookieResults() {
+  const result = cookieResult;
+  const expanded = new Set([...$('cookie-results').querySelectorAll('details[open]')].map(node => node.id));
+  const stageChoices = (tokens, choice, kind = 'row', selectionKey = null) => { try { inventory.stage(tokens, choice, kind, selectionKey); } catch (error) { showError(error); } };
+  const cookieRow = cookie => {
+    const canChoose = Boolean(cookie.rowToken && model.canEdit && !busy);
+    const selectId = `inventory-select-${result.cookies.indexOf(cookie)}`;
+    const select = checkbox(`Select ${cookie.name} on ${cookie.domain}`, selectedCookies.has(cookie.rowToken), { id: selectId, disabled: !canChoose, onchange: event => { if (event.target.checked) selectedCookies.add(cookie.rowToken); else selectedCookies.delete(cookie.rowToken); renderCookieResults(); $(selectId)?.focus(); } });
+    return el('div', { className: 'row' }, el('div', {}, select.node, el('p', {}, el('strong', {}, cookie.domain)), el('p', {}, `Name: “${cookie.name}” · Path: “${cookie.path}”`), el('p', { className: 'muted' }, cookie.protected ? 'Kept by saved protection' : 'Burnable, subject to safety checks'), inventory.choices.has(`row:${cookie.rowToken}`) ? el('p', {}, `Draft choice: ${inventory.choices.get(`row:${cookie.rowToken}`).choice}`) : null, cookie.reasons?.length ? el('small', {}, reasonText(cookie.reasons)) : null, cookie.matchingExceptionIndexes?.length ? el('small', {}, `Matching saved exceptions: ${cookie.matchingExceptionIndexes.map(index => index + 1).join(', ')}. ${cookie.overriddenRules?.length ? `Overrides: ${reasonText(cookie.overriddenRules)}` : ''}`) : null, el('small', {}, [cookie.secure ? 'Secure' : '', cookie.httpOnly ? 'HttpOnly' : '', cookie.session ? 'Session' : 'Persistent'].filter(Boolean).join(' · '))), el('div', { className: 'actions' }, button('Keep stored', () => stageChoices([cookie.rowToken], 'keep'), { disabled: !canChoose }), button('Make burnable', () => stageChoices([cookie.rowToken], 'burnable'), { disabled: !canChoose }), button('Create rule', () => openRule(null, { domain: cookie.domain.replace(/^\./, ''), includeSubdomains: false, name: cookie.name, path: cookie.path, scope: { type: 'selected', storeRefs: [cookie.storeRef] } }), { className: 'create-cookie-rule', disabled: !model.canEdit, 'aria-label': `Create draft rule for ${cookie.name} on ${cookie.domain}` })));
+  };
+  const groups = groupCookieInventory(result.cookies).map((store, storeIndex) => {
+    const sites = store.sites.map((site, siteIndex) => {
+      const jars = site.jars.map((jar, jarIndex) => {
+        const token = jar.cookies[0].jarToken;
+        const key = JSON.stringify([store.storeRef, site.main, jar.domain]);
+        const choices = jar.kind === 'third-party' ? el('div', { className: 'actions' },
+          el('small', {}, `${jar.cookies[0].jarSize ?? 'Unknown'} cookies across snapshot pages`),
+          helpControl('Jar choices', 'Jar choices are persistent and include future cookie names and paths. Keeping a jar may protect other partitions. Review the full scope before saving. Whole-container protection and deletion safety still apply.'),
+          button('Keep jar', () => stageChoices([token], 'keep', 'jar', key), { disabled: busy || !model.canEdit || !token }),
+          button('Make jar burnable', () => stageChoices([token], 'burnable', 'jar', key), { disabled: busy || !model.canEdit || !token })) : null;
+        const cookies = jar.cookies.map(cookie => el('details', { className: 'inventory-cookie', id: `inventory-cookie-${result.cookies.indexOf(cookie)}` },
+          el('summary', {}, cookie.name || '(empty name)', el('span', { className: 'pill' }, cookie.protected ? 'Preserved' : 'Burnable')), cookieRow(cookie)));
+        return el('details', { className: 'inventory-jar', id: `inventory-jar-${storeIndex}-${siteIndex}-${jarIndex}` },
+          el('summary', {}, jar.domain, el('small', {}, `${jar.kind === 'third-party' ? 'Third-party jar' : jar.kind === 'unpartitioned' ? 'Unpartitioned' : 'Own cookies'} · ${jar.cookies.length} on this page`)), choices, cookies);
+      });
+      return el('details', { className: 'inventory-site', id: `inventory-site-${storeIndex}-${siteIndex}` },
+        el('summary', {}, el('strong', {}, site.main || 'Unknown association'), el('small', {}, site.kind === 'unpartitioned' ? 'Unpartitioned cookies' : site.kind === 'partitioned' ? 'Partitioned by main site' : 'Association unavailable')), jars);
+    });
+    return el('section', { className: 'inventory-store' }, el('h3', {}, labelRef(store.storeRef)), sites);
+  });
+
+  const unavailable = (model.state.stores || []).filter(store => store.availability !== 'available');
+  const conflicts = inventory.current ? inventory.plan.conflicts || [] : [];
+  const changes = inventory.current && !conflicts.length ? describeInventoryChanges(inventory.plan.configuration, model.draft) : [];
+  const review = inventory.dirty ? el('section', {}, el('h3', {}, 'Draft cookie choices'), el('p', {}, `${inventory.choices.size} cookie or jar choices. These create persistent rules that can apply to recreated cookies.`), inventory.current && !conflicts.length ? notice('The backend accepted the reviewed choices. Select Save changes to commit them together with the Settings draft.') : null, changes.length ? el('div', {}, el('p', {}, 'Additional changes to the draft:'), el('ul', {}, changes.map(change => el('li', {}, change)))) : null, conflicts.map(conflict => notice(`${conflict.message}${conflict.scope ? ` Affected scope: ${describeAffectedScope(conflict.scope)}` : ''}`, 'error')), conflicts.some(conflict => conflict.code === 'SCOPE_REVIEW_REQUIRED') ? button('I reviewed the affected scopes', () => inventory.acknowledgeScopes()) : null, conflicts.some(conflict => conflict.code !== 'SCOPE_REVIEW_REQUIRED') ? el('p', {}, 'Edit the relevant rules or exception draft, then review these choices again.') : null, button('Clear cookie choices', () => inventory.clear(), { disabled: busy })) : null;
+  replace($('cookie-results'), unavailable.length ? notice(`Some stores are unavailable: ${unavailable.map(storeLabel).join(', ')}. They are not included in this inventory.`) : null, result.cookies.some(cookie => cookie.association?.kind === 'unknown') ? notice('Some cookies have unknown site associations. They are not assigned to a known site.') : null, review, el('div', { className: 'actions' }, el('span', {}, `${selectedCookies.size} selected on this page`), button('Keep selected', () => stageChoices([...selectedCookies], 'keep'), { disabled: busy || !selectedCookies.size }), button('Make selected burnable', () => stageChoices([...selectedCookies], 'burnable'), { disabled: busy || !selectedCookies.size })), groups.length ? groups : el('p', { className: 'empty' }, 'No matching cookie metadata.'));
+  for (const node of $('cookie-results').querySelectorAll('details')) if (expanded.has(node.id)) node.open = true;
+}
+$('cookie-search-form').addEventListener('submit', event => { event.preventDefault(); const load = () => act(async () => { inventory.clear(); await loadCookies(); }); if (inventory.dirty) discardThen(load); else load(); });
 $('next-cookies').addEventListener('click', () => act(() => loadCookies(nextPageToken)));
 $('export').addEventListener('click', () => act(async () => {
   const exported = await client.prepareExport({}, model.state.revision);
@@ -204,7 +327,7 @@ function renderImport() {
     replace($('messages'), notice('Import canceled. Saved protection and your editor draft are unchanged.'));
   };
   content.push(el('div', { className: 'transfer-stage' }, heading(recovery ? 'Recover configuration with Replace import' : 'Import a configuration file')));
-  if (model.dirty) content.push(notice('An import applies saved settings. Applying it discards your current unsaved draft after a separate confirmation.'));
+  if (model.dirty || inventory.dirty) content.push(notice('An import applies saved settings. Applying it discards your current unsaved draft after a separate confirmation.'));
   if (recovery) content.push(notice('Previous protection is unknown. A valid file, explicit mappings, and a confirmed Replace preview are required.'));
   if (importer.pending) {
     content.push(notice(`${importer.pending}…`), el('progress', { 'aria-label': importer.pending }), button('Cancel import preparation', cancel));
@@ -276,8 +399,8 @@ function renderImport() {
   } else {
     content.push(heading('Final preview · ready to apply'), renderPreview(importer.plan.preview), notice('Nothing changes until you apply this complete configuration.'));
     content.push(el('div', { className: 'actions' }, button('Apply configuration', () => {
-      const apply = () => act(() => importer.apply().then(() => { importVisible = false; renderImport(); replace($('messages'), notice('Imported configuration saved.')); }));
-      if (model.dirty) discardThen(apply); else apply();
+      const apply = () => act(() => importer.apply().then(() => { inventory.clear(); selectedCookies.clear(); importVisible = false; renderImport(); replace($('messages'), notice('Imported configuration saved.')); }));
+      if (model.dirty || inventory.dirty) discardThen(apply); else apply();
     }, { className: 'primary', disabled: busy || model.locked }), button('Change mode or mappings', () => act(() => importer.inspect(importer.text, importer.mode)), { disabled: busy }), button('Cancel import', cancel)));
   }
   replace(host, content);

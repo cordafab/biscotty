@@ -1,14 +1,28 @@
 # Implementation verification
 
-The [0.1.5 correction record](publication-fixes-0.1.5.md) records the current lifecycle fixes and fresh verification.
-It adds native document verification during restoration and rejects cancellation during terminal cleanup.
-Its 175 automated tests, 30 independent audit probes, and 35 native Firefox checks pass.
-Signed release verification remains incomplete.
+## Version 0.2.1 metadata increment
 
-Date: 25 October 2026. Current source version: 0.1.5.
-The [publication audit corrections](publication-fixes-0.1.3.md) preserve the earlier patch and pre-bump native verification.
-The [0.1.3 startup recovery correction](#version-013-startup-recovery-correction) records the earlier patch.
-Earlier sections preserve baseline, Current Site, and 0.1.2 publishing evidence.
+Date: 3 November 2026. Current source version: 0.2.1.
+The user requested a patch increment after the frontend refresh.
+Manifest and package metadata agree; static source checks, package generation, ZIP integrity, and SHA-256 verification passed.
+The frontend's 196 automated tests, 19 native scenarios, and seven browser DOM checks preceded this metadata increment.
+The earlier `0.2.0` evidence below remains historical.
+
+
+This file records current and historical implementation checks. Signed release verification remains incomplete.
+
+## Version 0.2.0 working-tree verification
+
+Date: 3 November 2026. Current source version: 0.2.0.
+The 190 controlled Node.js tests pass with no failures or skips.
+The static check passes for 28 native source files, imports, module boundaries, privacy restrictions, and the manifest.
+The 30-file `biscotty-0.2.0.zip` archive passes ZIP integrity checks and contains manifest version `0.2.0`.
+Firefox 159.0 on macOS 27.2 arm64 passes 18 disposable-profile scenarios without first-party isolation.
+A separate profile passes 19 scenarios with first-party isolation and cross-profile import.
+These runs include partition and store isolation, stale Current Site edits, and popup and Settings form behavior.
+The code review corrected Current Site policy status to use saved policy coverage instead of only captured cookie outcomes.
+Signed install, update, supported-platform, accessibility, and complete acceptance checks remain open.
+
 M0 and the four M1 implementation tracks are integrated. M2 native coverage is partial. M3 signing remains open.
 The release is not approved until every mandatory case in the PRDs has the required evidence.
 
@@ -27,14 +41,14 @@ The native regression verifies actual frame document IDs and rejects an old save
 Native observation listeners remain owned by the production background; restoration uses isolated saved-state fixtures.
 
 Version `0.1.5` packaging, ZIP integrity, source identity, and Mozilla validator 10.14.0 pass.
-The [raw evidence](audit-0.1.5/README.md) preserves command results separately from the original 0.1.4 audit.
+Historical audit artifacts were removed during the approved documentation cleanup.
 Signed installation, signed update, minimum-version, ESR, Windows, Linux, and complete accessibility/lifecycle acceptance remain open.
 
 ## Completed checks
 
 - Native Node.js tests exercise pure policy, validation, configuration commits, transfer, GUI controllers, and public gateway requests.
 - Static source checks validate ES modules, local imports, packaged resources, frontend/backend separation, permissions, and prohibited network/dynamic execution.
-- Firefox 158.0.1 on macOS 27.0.1 arm64 passed disposable-profile tests with first-party isolation disabled and enabled.
+- Firefox 159.0 on macOS 27.2 arm64 passed disposable-profile tests with first-party isolation disabled and enabled.
 - Two separate Firefox profiles exported and imported synthetic protection using different native container identifiers.
 - Native checks covered closed-tab containers, whole-container protection, future parent-domain/path collisions, partitions, Secure and HttpOnly metadata, first-party separation, encoded-path skips, and null deletion responses.
 - Native DOM tests confirmed inert imported text, native form semantics, and the settings dialog's actual Save and Cancel behavior.
@@ -43,8 +57,8 @@ Signed installation, signed update, minimum-version, ESR, Windows, Linux, and co
 
 Run `npm test` for the current exact test count and observed results.
 The baseline integrated Node.js check passed 99 tests; see the amendment evidence below for the current suite.
-The default native run passed 13 scenarios; the isolated cross-profile run passed 14 scenarios.
-Tests use Node.js v26.12.1 and Python 3.9 standard modules, with no third-party packages.
+The default native run passed 18 scenarios; the first-party-isolated cross-profile run passed 19 scenarios.
+The 0.2.0 runs used Node.js v24.22.1 and Python 3.12.14 standard modules, with no third-party packages.
 
 ## Requirement-to-test map
 
@@ -153,7 +167,7 @@ Signed installation, signed update, minimum-version Firefox, and other operating
 
 Date: 25 October 2026. Status: implementation and local preparation checks passed; public release remains unapproved.
 The [publishing PRD](../prd/09-publishing-0.1.md) defines this amendment.
-The original [security review](publication-security-review.md) records the 0.1.1 findings.
+The historical 0.1.1 security report was removed during the approved documentation cleanup.
 
 ### Implemented changes
 
@@ -222,7 +236,7 @@ These open gates prevent a release-complete claim under REL-08.
 
 Date: 25 October 2026. Status: correction and local preparation checks passed; signed release verification remains incomplete.
 The patch follows the [publishing requirements](../prd/09-publishing-0.1.md) and [patch decision](../prd/08-decisions.md#version-013-patch).
-The [security review](publication-security-review-0.1.2.md#startup-recovery-correction) records the original failure and its correction.
+The historical security report was removed; the correction and observed checks are summarized below.
 
 Initialization now marks failed startup as interrupted without claiming a live executor.
 Dismissal retains the operation lock until marker and session cleanup succeed.

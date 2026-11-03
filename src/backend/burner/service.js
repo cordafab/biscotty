@@ -1,5 +1,6 @@
 import { fail, clone, opaqueId, yieldTask } from '../../core/errors.js';
-import { matchCookie, assessSelector } from '../../core/policy/index.js';
+import { matchCookie, assessSelector, selectorCandidateHosts } from '../../core/policy/index.js';
+import { createInventoryClassifier } from '../firefox/inventory.js';
 import { selectorFor, nativeSelector } from './selectors.js';
 export const catalogKey = catalog => JSON.stringify([catalog.normalStoreId, [...catalog.containers].sort((a,b) => a.cookieStoreId.localeCompare(b.cookieStoreId))]);
 const liveStates = new Set(['running', 'cancel_requested']);
@@ -52,7 +53,23 @@ export function createBurner({ adapter, configuration, handles, emit }) {
     const views = (await configuration.view()).stores;
     const stores = [{ ref: 'normal', id: catalog.normalStoreId }, ...record.containerBindings.filter(binding => binding.state === 'active').map(binding => ({ ref: binding.ref, id: binding.cookieStoreId }))];
     const candidates = [];
+    const classifyCookie = createInventoryClassifier(adapter);
+    const hostFacts = new Map();
+    const classifyHost = host => {
+      if (!hostFacts.has(host)) hostFacts.set(host, Promise.resolve().then(() => adapter.classifyHost(host)).catch(() => null));
+      return hostFacts.get(host);
+    };
+    async function selectorFacts(selector) {
+      if (!selector?.partitionKey?.topLevelSite) return null;
+      let topHost;
+      try { topHost = new URL(selector.partitionKey.topLevelSite).hostname; } catch { return null; }
+      const cookieDomains = new Map();
+      for (const host of selectorCandidateHosts(selector)) cookieDomains.set(host, await classifyHost(host));
+      return { cookieDomains, topLevelSite: await classifyHost(topHost) };
+    }
     let ruleProtected = 0, ambiguous = 0;
+    let exceptionEligible = 0, exceptionSafetySkips = 0;
+    const exceptionExamples = [];
     const skippedStores = [];
     for (const store of stores) {
       if (record.protectedContainerRefs.includes(store.ref)) { skippedStores.push(views.find(view => view.ref === store.ref)); continue; }
@@ -60,12 +77,24 @@ export function createBurner({ adapter, configuration, handles, emit }) {
       try { cookies = await adapter.listCookies(store.id); }
       catch { fail('CONTEXT_UNAVAILABLE', 'Cookie enumeration failed. No burn preview was created.'); }
       for (let index = 0; index < cookies.length; index++) {
-        const cookie = cookies[index];
-        if (matchCookie(cookie, record, store.ref).protected) { ruleProtected++; continue; }
-        const selector = selectorFor(cookie, store.ref);
-        if (!selector || assessSelector(selector, record, store.ref).status !== 'safe') { ambiguous++; continue; }
-        candidates.push({ selector, storeId: store.id });
+        // Protected and ambiguous cookies must yield too; they may be the entire inventory.
         if (index % 100 === 0) await yieldTask();
+        const cookie = cookies[index];
+        const { facts } = await classifyCookie(cookie);
+        const protection = matchCookie(cookie, record, store.ref, facts);
+        if (protection.protected) { ruleProtected++; continue; }
+        const selector = selectorFor(cookie, store.ref);
+        const safetyFacts = await selectorFacts(selector);
+        if (!selector || assessSelector(selector, record, store.ref, safetyFacts).status !== 'safe') {
+          ambiguous++;
+          if (protection.matchingExceptionIndexes?.length) exceptionSafetySkips++;
+          continue;
+        }
+        if (protection.matchingExceptionIndexes?.length) {
+          exceptionEligible++;
+          if (exceptionExamples.length < 5) exceptionExamples.push({ domain: cookie.domain, matchingExceptionIndexes: protection.matchingExceptionIndexes.slice(0, 5), overriddenRuleIndexes: protection.overriddenRules.slice(0, 5).map(item => item.ruleIndex) });
+        }
+        candidates.push({ selector, storeId: store.id, safetyFacts });
       }
       await yieldTask();
     }
@@ -73,7 +102,7 @@ export function createBurner({ adapter, configuration, handles, emit }) {
     const latest = await configuration.readConfiguration();
     if (generation !== environmentGeneration || catalogKey(catalog) !== catalogKey(await adapter.getCatalog()) || latest.record?.revision !== record.revision || latest.catalogGeneration !== catalogGeneration || locked) fail('STALE_PREVIEW', 'Settings or access changed. Prepare a new preview.');
     const previewToken = handles.issue('burn', request.owner, { candidates, record, catalogGeneration, catalog: catalogKey(catalog), generation, ambiguous, ruleProtected, skippedStoreCount: skippedStores.length });
-    return { previewToken, revision: record.revision, stores: stores.filter(store => !record.protectedContainerRefs.includes(store.ref)).map(store => views.find(view => view.ref === store.ref)), eligibleAttempts: candidates.length, ruleProtected, ambiguous, skippedStores, scope: 'Accessible HTTP/HTTPS cookies in Normal browsing and available named containers. Protected stores are skipped without enumeration; their cookies are not included in counts.', warning: 'Burning cookies may sign you out. Counts are estimates. Active websites can recreate cookies. Successful calls do not confirm the exact removed cookie identity.' };
+    return { previewToken, revision: record.revision, stores: stores.filter(store => !record.protectedContainerRefs.includes(store.ref)).map(store => views.find(view => view.ref === store.ref)), eligibleAttempts: candidates.length, ruleProtected, ambiguous, exceptionEligible, exceptionSafetySkips, exceptionExamples, skippedStores, scope: 'Accessible HTTP/HTTPS cookies in Normal browsing and available named containers. Protected stores are skipped without enumeration; their cookies are not included in counts.', warning: 'Burning cookies may sign you out. Counts are estimates. Active websites can recreate cookies. Successful calls do not confirm the exact removed cookie identity.' };
   }
   async function startBurn(payload, request) {
     return configuration.runExclusive(async () => {
@@ -115,7 +144,7 @@ export function createBurner({ adapter, configuration, handles, emit }) {
         if (preview.generation !== environmentGeneration || catalogKey(await adapter.getCatalog()) !== preview.catalog) { operation.reason = 'COVERAGE_CHANGED'; partial = true; break; }
       } catch { operation.reason = 'ACCESS_OR_SCOPE_LOST'; partial = true; break; }
       if (operation.state === 'cancel_requested') break;
-      const safety = assessSelector(candidate.selector, preview.record, candidate.selector.storeRef);
+      const safety = assessSelector(candidate.selector, preview.record, candidate.selector.storeRef, candidate.safetyFacts);
       if (safety.status !== 'safe') { operation.safetySkips++; continue; }
       // No asynchronous work belongs between the final cancellation check and native call.
       operation.attemptedCalls++; operation.unattemptedCalls--;
@@ -147,7 +176,7 @@ export function createBurner({ adapter, configuration, handles, emit }) {
     return { cancellationRequested: true };
   }
   async function dismissOperation({ operationId }) {
-    return configuration.runExclusive(async () => {
+    const result = await configuration.runExclusive(async () => {
       if (operation?.id !== operationId || live || liveStates.has(operation?.state)) fail('OPERATION_ACTIVE', 'An active burn cannot be dismissed.');
       await viewWrites;
       await adapter.clearMarker();
@@ -155,6 +184,10 @@ export function createBurner({ adapter, configuration, handles, emit }) {
       operation = null; locked = false; emit('operation');
       return { dismissed: true };
     });
+    // An interrupted operation can defer a legacy configuration migration.
+    // Refresh after leaving the queue so migration can acquire it safely.
+    await configuration.refresh();
+    return result;
   }
   return { initialize, isLocked, invalidate, view: () => clone(operation), waitForIdle: () => execution, handlers: { previewBurn, startBurn, cancelBurn, dismissOperation } };
 }

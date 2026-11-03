@@ -139,3 +139,16 @@ _Avoid_: Always keep existing, automatic union.
 **Replace**:
 An import mode that substitutes the confirmed imported configuration for the existing configuration.
 _Avoid_: Reset, merge.
+
+**Third-party jar**:
+A group of cookies for one third-party cookie domain, known top-level site partition, and cookie store.
+It is distinct from a complete container or cookie store.
+
+**Unpartitioned cookie**:
+A cookie without a top-level-site partition.
+It can be shared between sites within its cookie store, subject to Firefox access restrictions.
+Its metadata does not identify every site using it.
+
+**Selected store**:
+The available cookie store selected for popup protection and cookie inspection.
+Selecting it does not move the active tab.

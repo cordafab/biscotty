@@ -13,7 +13,7 @@ export function element(tag, attributes = {}, ...children) {
 export function button(label, click, attributes = {}) { return element('button', { type: 'button', onclick: click, ...attributes }, label); }
 export function field(label, control, hint) { return element('label', { className: 'field' }, element('span', {}, label), control, hint ? element('small', {}, hint) : null); }
 export function checkbox(label, checked = false, attributes = {}) { const input = element('input', { type: 'checkbox', checked, ...attributes }); return { input, node: element('label', { className: 'check' }, input, element('span', {}, label)) }; }
-export const replace = (node, ...children) => node.replaceChildren(...children.flat().filter(Boolean));
+export const replace = (node, ...children) => node.replaceChildren(...children.flat(Infinity).filter(Boolean));
 export function notice(text, kind = 'info') { return element('p', { className: `notice ${kind}`, role: kind === 'error' ? 'alert' : 'status' }, text); }
 export function showError(error, target = document.getElementById('messages')) {
   const suffix = ['REVISION_CONFLICT', 'STALE_SITE_CONTEXT', 'STALE_PREVIEW', 'STALE_IMPORT'].includes(error?.code) ? ' Refresh the saved state and review again.' : '';
@@ -21,3 +21,9 @@ export function showError(error, target = document.getElementById('messages')) {
   target.focus?.();
 }
 export function valueDescription(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
+export function helpControl(label, explanation) {
+  const dialog = element('dialog', { className: 'help-dialog', 'aria-label': label }, element('h2', {}, label), element('p', {}, explanation));
+  const close = button('Close', () => dialog.close());
+  dialog.append(close);
+  return element('span', { className: 'help-control' }, button('i', () => dialog.showModal(), { className: 'info', 'aria-label': `About ${label}`, 'aria-haspopup': 'dialog' }), dialog);
+}

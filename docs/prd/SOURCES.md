@@ -227,3 +227,23 @@ The smaller observation budget reserves capacity for other temporary extension s
 Observation counts, persistence intervals, cache sizes, and eviction are project decisions.
 Mozilla requires necessary permissions, reviewable code, accurate descriptions, and acceptable browser performance.
 Local validation does not replace Mozilla review or signed-install checks.
+
+## Partition exception research — 3 November 2026
+
+[Mozilla Cookies API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies) describes partition keys and store access.
+[Mozilla cookie removal](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies/remove) describes deletion selectors.
+[Mozilla Total Cookie Protection](https://support.mozilla.org/en-US/kb/total-cookie-protection-and-website-breakage-faq) describes partitioning and possible site breakage.
+The exception precedence and same-base-domain exclusion are product decisions, not Firefox guarantees.
+
+## S23: Partitioned and shared cookies
+
+Checked on 3 November 2026.
+[Mozilla Total Cookie Protection FAQ](https://support.mozilla.org/en-US/kb/total-cookie-protection-and-website-breakage-faq).
+[Mozilla state partitioning](https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/State_Partitioning).
+[Mozilla cookies API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies).
+
+Total Cookie Protection is enabled by default but can be disabled.
+Storage access grants can permit access to unpartitioned cookies.
+Cookie-store isolation and top-level-site partitioning are distinct scopes.
+The cookies API exposes partition identity and can enumerate partitioned and unpartitioned storage.
+Grouping unpartitioned cookies without inferring every using site is the product's conservative design decision.

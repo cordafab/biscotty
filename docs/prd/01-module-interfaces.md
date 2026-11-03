@@ -1,6 +1,35 @@
 # Shared module interfaces
 
+## Selected-container frontend amendment
+
+Approved on 3 November 2026; implementation follows [the frontend refresh PRD](12-frontend-refresh.md).
+This section supersedes current-store-only descriptions for popup contexts and quick protection.
+
+`getSiteContext` accepts `{ windowId, storeRef? }`.
+Without `storeRef`, the backend selects the active tab's store.
+With `storeRef`, the backend requires an available catalog reference and selects that store.
+The returned `store` describes the selected store; `tabStore` describes the unchanged active tab's store.
+
+Site tokens bind both the captured tab store and the selected target store.
+Navigation, captured tab-store changes, catalog changes, or revision changes invalidate dependent operations.
+Backend validation compares the active tab against its captured store, independently of the selected target store.
+Existing mutation actions use the selected store from the token, never a caller-supplied native identifier.
+
+`getCookies` additionally accepts `contextToken?`.
+A site-bound query captures cookies only from the selected store and associations belonging to the captured site.
+Unpartitioned cookies appear only when their domain and host-only properties match the captured page host.
+Unknown associations are omitted from site rows and reported through partial coverage.
+General Settings queries retain unknown associations and existing store filters.
+
+Site cookie continuation tokens bind the original context token.
+The backend rejects mixing site contexts or using a site continuation without its original context.
+The backend revalidates site context before enumeration and before returning every page.
+Cookie metadata, limits, row tokens, and protection evaluation retain their existing contracts.
+
+
 Status: Required contract for all implementation tracks.
+The [partition exception](partition-exceptions/00-design.md), [Settings inventory](partition-exceptions/01-settings-inventory.md), and [Current Site inventory](partition-exceptions/02-current-site-inventory.md) amendments supersede conflicting observation and policy statements below.
+Their integration is in progress; implementation does not establish completed acceptance evidence.
 Current Site additions: Approved; implementation present; release verification incomplete.
 Owner: Integration agent.
 Read with the [product PRD](00-product.md) and [data contract](02-protection-and-settings.md#configuration-data).
@@ -12,6 +41,49 @@ Read with the [product PRD](00-product.md) and [data contract](02-protection-and
 | Backend | Firefox access, action execution, operation state, configuration commits, and communication. | DOM access, GUI layout, form state, and dialogs. |
 | Frontend | HTML, CSS, input collection, draft form state, confirmation screens, and result display. | Direct Firefox API calls, cookie deletion, and authoritative protection decisions. |
 | Pure logic | Matching, schema checks, canonical forms, conflict calculations, and result calculations. | Firefox APIs, DOM access, storage access, and network access. |
+
+## Partition and inventory contract
+
+The local version 2 record adds `exceptions` to the version 1 fields.
+Each exception contains `cookieDomain`, `cookieIncludeSubdomains`, `topLevelDomain`, `topLevelIncludeSubdomains`, `scheme`, `name`, `path`, `scope`, and `enabled`.
+The scheme is `all`, `http`, or `https` and selects the top-level partition site.
+The canonical identity contains both domain selectors, scheme, name, and path.
+Scope and enabled state do not form part of that identity.
+The limit is 10,000 exceptions; the complete portable export remains limited to 2 MiB.
+
+Migration validates version 1 before adding an empty exception array.
+It confirms the complete version 2 write before exposing the migrated record.
+Migration preserves the revision and fails closed if storage cannot confirm the result.
+An active operation defers migration until the operation lock clears.
+Portable version 2 contains the complete exception array with portable store references.
+Imports accept strictly validated versions 1 and 2; version 1 contains no exceptions.
+An exception identity with different scope or enabled state requires an explicit import decision.
+
+`getCookies` returns bounded stored-cookie metadata pages without values.
+Each row identifies its store, known partition association, saved policy reasons, and an opaque owner-bound row token.
+The backend rejects oversized captures instead of reporting a truncated snapshot as complete.
+Current Site pages group known partitions and separately identify unpartitioned own-domain cookies.
+Unknown associations remain outside known-site groups and produce partial coverage.
+
+`planInventoryChoices` accepts a complete Settings draft and row-token choices with the expected revision.
+It returns a plan token, a complete proposed configuration, and typed conflicts for review.
+`commitInventoryChoices` accepts the plan token and expected revision.
+It revalidates selected cookie identities and commits the complete candidate through the mutation queue.
+Unresolved conflicts, changed identities, stale revisions, missing access, and active burns prevent a write.
+`saveSiteException` accepts a domain token and complete exception with the expected revision.
+It validates the captured site context again before its queued write.
+All three actions use owner-bound handles; the commit actions use mutation deduplication.
+
+`listExceptions` accepts an offset and page size from 1 through 200 and returns the revision and next offset.
+`createException`, `updateException`, `setExceptionEnabled`, and `deleteException` use the expected revision and the complete configuration commit queue.
+Updates, state changes, and deletions identify an exception index at that revision.
+The mutation response contains the committed revision.
+`evaluateCookiePolicy` accepts an owner-bound inventory row token and returns effective protection, matching exception indexes, and overridden rule reasons.
+It rejects changed configuration or expired inventory context.
+
+Navigation tracking must not register request-observation listeners or retain contacted hosts.
+Startup clears legacy temporary observations before a new site view is available.
+The user controls refresh; a stored association does not establish cookie transmission or use.
 
 - **ARCH-01.** All Firefox API calls MUST remain within backend modules.
 - **ARCH-02.** The frontend MUST call the public backend client for every Firefox-dependent action.
@@ -79,7 +151,7 @@ A site target contains its canonical domain and whether subdomains are included.
 | `classifyHost` | Hostname. | Canonical host, host kind, known-suffix flag, and base domain or null. |
 | `listCookies` | Native store identifier. | Sanitized metadata with complete native partition identity. |
 | `removeCookie` | Complete native deletion selector. | Native success, no-match result, or failure. |
-| `onSiteActivity` | Backend listener, registered synchronously. | Unsubscribe function for reduced request, navigation, and tab-lifetime events. |
+| `onSiteActivity` | Backend listener, registered synchronously. | Unsubscribe function for top-level navigation and tab-lifetime events. |
 | `readSiteObservations` | None. | Current session-memory observations or an explicit read failure. |
 | `writeSiteObservations` | Complete bounded observation snapshot, keyed by native tab identifier. | Confirmed aggregate session-memory write or failure. |
 | `clearSiteObservation` | Native tab identifier, or all observations. | Confirmed removal or failure. |
@@ -90,15 +162,11 @@ Track A owns configuration reconciliation and uses those operations through inje
 Its reconciliation assigns extension references to native catalog entries.
 Native identifiers stay private to backend implementations.
 
-Reduced activity events contain only event kind, host, scheme, store identity, and necessary tab, frame, document, and request identifiers.
-The adapter discards paths, queries, fragments, credentials, headers, and bodies before forwarding events.
-An observation record contains its navigation generation, current document ancestry, contacted hosts, top-level site, store identity, and observation coverage.
-Native identifiers and observation records remain private to the backend.
-The backend serializes observation updates separately from configuration commits.
-The [observation limits](10-bounded-observation.md) control event admission, persistence batches, eviction, and restored-state validation.
-`clearSiteObservation` remains available for confirmed cleanup after snapshot failures.
-Restoration requires a committed observation whose top-level document matches `getDocumentId`.
-Unknown, failed, or changed document identity discards that saved observation.
+Navigation events contain only event kind and necessary tab, frame, and document identifiers.
+The backend retains at most 128 navigation generations in memory.
+It does not retain contacted hosts or restore request observations.
+Startup confirms legacy observation cleanup before serving site views.
+The [Current Site inventory amendment](partition-exceptions/02-current-site-inventory.md) replaces the retired observation contract.
 
 | Configuration operation | Input | Result |
 | --- | --- | --- |
@@ -139,7 +207,7 @@ Inputs below omit the common envelope fields.
 | --- | --- | --- | --- |
 | `getState` | None. | Configuration, portable export status, revision, store catalog, capabilities, and current operation view. | No. |
 | `getCookies` | Store references, search text, page size, and optional page token. | Sanitized metadata page and optional next token. | No. |
-| `getSiteContext` | Backend-client window context. | Opaque context token, site target, store, status, reasons, and permitted controls. | No. |
+| `getSiteContext` | Backend-client window context and optional selected store reference. | Opaque context token, site target, store, status, reasons, and permitted controls. | No. |
 | `getSiteCookieDomains` | Context token, optional page size, and optional page token. | Domain snapshot page, observation coverage, revision, store reference, and next page token. | No. |
 | `setSiteProtection` | Context token and enabled state. | New revision and effective site status. | Yes. |
 | `saveSiteRule` | Domain token, rule index or null, and complete editable rule. | Committed revision. | Yes. |

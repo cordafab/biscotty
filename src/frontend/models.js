@@ -6,6 +6,64 @@ export const reasonText = reasons => (reasons || []).map(reason => typeof reason
 export const storeLabel = store => store?.label || store?.name || 'Unavailable store';
 export const operationTitle = operation => ({ running: 'Burn in progress', cancel_requested: 'Stopping after the pending deletion', completed: operation?.safetySkips ? 'Completed with skipped cookies' : 'Completed', partial: 'Partly completed', canceled: 'Burn canceled', interrupted: 'Burn interrupted' }[operation?.state] || 'Cookie burner');
 
+// Group only captured rows; an absent association must never be invented.
+export function groupCookieInventory(cookies) {
+  const stores = new Map();
+  for (const cookie of cookies) {
+    if (!stores.has(cookie.storeRef)) stores.set(cookie.storeRef, new Map());
+    const sites = stores.get(cookie.storeRef), association = cookie.association;
+    const main = association?.kind === 'partitioned' && association.topLevelSite ? association.topLevelSite : association?.kind === 'unpartitioned' ? cookie.domain.replace(/^\./, '') : null;
+    const siteKey = JSON.stringify([association?.kind === 'partitioned' ? 'partitioned' : association?.kind === 'unpartitioned' ? 'unpartitioned' : 'unknown', main]);
+    if (!sites.has(siteKey)) sites.set(siteKey, { main, kind: association?.kind || 'unknown', jars: new Map() });
+    const site = sites.get(siteKey);
+    const jarKind = association?.kind === 'partitioned' ? association.relationship === 'third-party' ? 'third-party' : association.relationship === 'own' ? 'own' : 'unknown' : association?.kind === 'unpartitioned' ? 'unpartitioned' : 'unknown';
+    const jarKey = JSON.stringify([jarKind, cookie.domain]);
+    if (!site.jars.has(jarKey)) site.jars.set(jarKey, { kind: jarKind, domain: cookie.domain, cookies: [] });
+    site.jars.get(jarKey).cookies.push(cookie);
+  }
+  return [...stores].map(([storeRef, sites]) => ({ storeRef, sites: [...sites.values()].map(site => ({ ...site, jars: [...site.jars.values()] })) }));
+}
+
+export function createInventoryChoicesModel(client, editor, changed = () => {}) {
+  const model = {
+    choices: new Map(), plan: null, signature: null, acknowledgmentSignature: null, pending: false,
+    get dirty() { return model.choices.size > 0; },
+    get current() { return Boolean(model.plan && model.signature === JSON.stringify([editor.draft, [...model.choices]])); },
+    stage(rowTokens, choice, kind = 'row', selectionKey = null) {
+      if (!['keep', 'burnable'].includes(choice)) throw new Error('Choose whether to keep or make the selected cookies burnable.');
+      if (!['row', 'jar'].includes(kind)) throw new Error('Select a cookie or jar.');
+      const next = new Set([...model.choices.keys(), ...rowTokens.filter(token => typeof token === 'string' && token).map(token => `${kind}:${selectionKey ?? token}`)]);
+      if (next.size > 200) throw new Error('A batch can include at most 200 cookies. Save or clear these choices before selecting more.');
+      for (const token of rowTokens) if (typeof token === 'string' && token) model.choices.set(`${kind}:${selectionKey ?? token}`, { [kind === 'row' ? 'rowToken' : 'jarToken']: token, choice, scopeAcknowledged: false });
+      for (const item of model.choices.values()) item.scopeAcknowledged = false;
+      model.acknowledgmentSignature = null; model.plan = null; changed();
+    },
+    clear() { model.choices.clear(); model.plan = null; model.signature = null; model.acknowledgmentSignature = null; changed(); },
+    acknowledgeScopes() { for (const choice of model.choices.values()) choice.scopeAcknowledged = true; model.acknowledgmentSignature = JSON.stringify([editor.draft, [...model.choices.values()].map(({ rowToken, jarToken, choice }) => [rowToken, jarToken, choice])]); model.plan = null; changed(); },
+    async review() {
+      if (!model.dirty || !editor.canEdit || model.pending) return;
+      if (model.acknowledgmentSignature !== JSON.stringify([editor.draft, [...model.choices.values()].map(({ rowToken, jarToken, choice }) => [rowToken, jarToken, choice])])) {
+        for (const choice of model.choices.values()) choice.scopeAcknowledged = false;
+        model.acknowledgmentSignature = null;
+      }
+      const signature = JSON.stringify([editor.draft, [...model.choices]]);
+      model.pending = true; changed();
+      try {
+        const plan = await client.planInventoryChoices({ draft: copy(editor.draft), choices: copy([...model.choices.values()]) }, editor.baseRevision);
+        if (signature !== JSON.stringify([editor.draft, [...model.choices]])) return;
+        model.plan = plan; model.signature = signature;
+      } finally { model.pending = false; changed(); }
+    },
+    async commit() {
+      if (!model.current || model.plan.conflicts?.length || !model.plan.planToken || !editor.canEdit || model.pending) throw new Error('Review the current choices and resolve every conflict before saving.');
+      model.pending = true; changed();
+      try { await client.commitInventoryChoices({ planToken: model.plan.planToken }, editor.baseRevision); model.clear(); await editor.refresh({ discard: true }); }
+      finally { model.pending = false; changed(); }
+    }
+  };
+  return model;
+}
+
 export function createEditorModel(client, changed = () => {}) {
   const model = {
     state: null, draft: null, baseRevision: null, dirty: false, stale: false, saving: false, error: null,
@@ -23,8 +81,8 @@ export function createEditorModel(client, changed = () => {}) {
       changed();
       return state;
     },
-    edit(change) {
-      if (!model.canEdit || !model.draft) return false;
+    edit(change, expectedRevision = null) {
+      if (!model.canEdit || !model.draft || (expectedRevision !== null && expectedRevision !== model.state.revision)) return false;
       change(model.draft);
       model.dirty = true;
       model.error = null;
@@ -61,23 +119,60 @@ export function createEditorModel(client, changed = () => {}) {
 export function createPopupModel(client, changed = () => {}) {
   let previewGeneration = 0;
   let snapshotGeneration = 0;
+  let refreshGeneration = 0;
   const model = {
-    state: null, site: null, preview: null, preparing: false, busy: false, error: null,
-    domains: [], domainStatus: 'loading', coverage: null, nextPageToken: null, domainRevision: null, domainStale: false, domainError: null, ruleEditor: null,
+    state: null, site: null, selectedStoreRef: null, preview: null, preparing: false, busy: false, error: null,
+    cookies: [], cookieStatus: 'idle', cookieError: null, nextCookiePageToken: null,
+    domains: [], domainStatus: 'loading', coverage: null, nextPageToken: null, domainRevision: null, domainStale: false, domainError: null, ruleEditor: null, exceptionEditor: null,
     get canSaveRule() { return Boolean(model.ruleEditor?.rule && !model.ruleEditor.saving && !model.ruleEditor.reviewRequired && !model.domainStale && model.state?.capabilities.canChangeProtection && !operationActive(model.state?.operation)); },
+    async selectStore(ref) {
+      if (model.ruleEditor || model.exceptionEditor) return;
+      model.selectedStoreRef = ref;
+      model.domainStale = true;
+      snapshotGeneration++;
+      model.cookies = []; model.cookieStatus = 'idle'; model.nextCookiePageToken = null;
+      await model.refresh();
+    },
     async refresh() {
+      const generation = ++refreshGeneration;
       const previousCatalog = model.state?.catalogGeneration;
-      model.state = await client.getState();
-      if (model.preview && (model.preview.revision !== model.state.revision || previousCatalog !== model.state.catalogGeneration || !model.state.capabilities.canBurn)) model.cancelPreview();
-      try { model.site = await client.getSiteContext(await client.windowContext()); }
-      catch (error) { model.site = { status: 'unavailable', reasons: [error.message], controls: {} }; }
+      const state = await client.getState();
+      let site;
+      try { site = await client.getSiteContext({ ...await client.windowContext(), ...(model.selectedStoreRef === null ? {} : { storeRef: model.selectedStoreRef }) }); }
+      catch (error) { site = { status: 'unavailable', reasons: [error.message], controls: {} }; }
+      if (generation !== refreshGeneration) return;
+      model.state = state;
+      model.site = site;
+      if (site.store) model.selectedStoreRef = site.store.ref;
+      if (model.preview && (model.preview.revision !== state.revision || previousCatalog !== state.catalogGeneration || !state.capabilities.canBurn)) model.cancelPreview();
       await model.refreshDomains();
       changed();
     },
+    async loadSiteCookies(more = false) {
+      if (!model.site?.contextToken || model.domainStale || model.cookieStatus === 'loading') return;
+      const generation = snapshotGeneration, contextToken = model.site.contextToken;
+      const pageToken = more ? model.nextCookiePageToken : null;
+      if (more && !pageToken) return;
+      model.cookieStatus = 'loading'; model.cookieError = null; changed();
+      try {
+        const page = await client.getCookies({ contextToken, pageSize: 100, ...(pageToken ? { pageToken } : {}) });
+        if (generation !== snapshotGeneration || contextToken !== model.site?.contextToken) return;
+        model.cookies = more ? [...model.cookies, ...page.cookies] : page.cookies;
+        model.nextCookiePageToken = page.nextPageToken;
+        model.cookieStatus = model.cookies.length ? 'ready' : 'empty';
+        if (page.coverage?.state === 'partial') model.coverage = page.coverage;
+      } catch (error) {
+        if (generation !== snapshotGeneration) return;
+        model.cookieError = error; model.cookieStatus = 'error';
+        if (['STALE_SITE_CONTEXT', 'REVISION_CONFLICT'].includes(error.code)) model.domainStale = true;
+      } finally { changed(); }
+    },
     async refreshDomains() {
       const generation = ++snapshotGeneration;
+      model.cookies = []; model.cookieStatus = 'idle'; model.cookieError = null; model.nextCookiePageToken = null;
       model.domains = []; model.nextPageToken = null; model.domainError = null; model.domainStale = false; model.coverage = null;
       if (model.ruleEditor) model.ruleEditor.reviewRequired = true;
+      if (model.exceptionEditor) model.exceptionEditor.reviewRequired = true;
       if (!model.site?.contextToken) { model.domainStatus = 'unavailable'; changed(); return; }
       model.domainStatus = 'loading'; changed();
       try {
@@ -118,6 +213,27 @@ export function createPopupModel(client, changed = () => {}) {
       editor.error = null; changed();
     },
     cancelSiteRule() { if (model.ruleEditor?.saving) return false; model.ruleEditor = null; changed(); return true; },
+    openSiteException(row) {
+      if (model.domainStale || row.group !== 'third-party' || !row.topLevelSite) return;
+      let host;
+      try { host = new URL(row.topLevelSite).hostname; } catch { return; }
+      model.exceptionEditor = { row: copy(row), revision: model.domainRevision, saving: false, reviewRequired: false, error: null, exception: { cookieDomain: row.domain, cookieIncludeSubdomains: false, topLevelDomain: host, topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'selected', storeRefs: [model.site.store.ref] }, enabled: true } };
+      changed();
+    },
+    cancelSiteException() { if (model.exceptionEditor?.saving) return false; model.exceptionEditor = null; changed(); return true; },
+    async saveSiteException(exception) {
+      const editor = model.exceptionEditor;
+      if (!editor || editor.saving || editor.reviewRequired || model.domainStale || !model.state?.capabilities.canChangeProtection || operationActive(model.state?.operation)) return;
+      editor.exception = copy(exception); editor.saving = true; editor.error = null; changed();
+      try {
+        await client.saveSiteException({ domainToken: editor.row.domainToken, exception: copy(exception) }, editor.revision);
+        model.exceptionEditor = null; await model.refresh();
+      } catch (error) {
+        editor.error = error;
+        if (!error.code || ['REVISION_CONFLICT', 'STALE_SITE_CONTEXT', 'STORAGE_FAILED', 'INTERNAL_FAILURE', 'PERMISSION_REQUIRED', 'INVALID_REQUEST'].includes(error.code)) { editor.reviewRequired = true; model.domainStale = true; }
+        throw error;
+      } finally { editor.saving = false; changed(); }
+    },
     async saveSiteRule(rule) {
       if (!model.canSaveRule) return;
       const editor = model.ruleEditor;
@@ -161,8 +277,9 @@ export function createPopupModel(client, changed = () => {}) {
     subscribe() { return client.subscribe(async event => {
       if (event.gap || ['configuration', 'stores', 'capabilities'].includes(event.reason)) model.cancelPreview();
       if (event.gap || ['configuration', 'stores', 'capabilities', 'site', 'siteContext'].includes(event.reason)) {
-        snapshotGeneration++; model.domainStale = true;
+        snapshotGeneration++; refreshGeneration++; model.domainStale = true; model.cookies = []; model.cookieStatus = 'idle'; model.nextCookiePageToken = null;
         if (model.ruleEditor) model.ruleEditor.reviewRequired = true;
+        if (model.exceptionEditor) model.exceptionEditor.reviewRequired = true;
         if (event.gap || ['site', 'siteContext', 'capabilities'].includes(event.reason)) { model.domains = []; model.nextPageToken = null; model.domainStatus = 'unavailable'; }
       }
       try { model.state = await client.getState(); }
@@ -252,8 +369,17 @@ export function reviewInactiveDecision(draft, decision, savedConfiguration = dra
     }))].sort();
     return { rule: copy(rule), resultingStoreRefs, requiresEdit, emptyScope: resultingStoreRefs.length === 0 };
   });
+  const affectedExceptions = (draft.exceptions || []).filter(item => item.scope.type === 'selected' && item.scope.storeRefs.includes(decision.ref)).map(exception => {
+    let requiresEdit = false;
+    const resultingStoreRefs = [...new Set(exception.scope.storeRefs.flatMap(ref => {
+      const change = decisions.get(ref);
+      if (change?.action === 'remove') { requiresEdit = true; return []; }
+      return [change?.action === 'map' ? change.targetRef : ref];
+    }))].sort();
+    return { exception: copy(exception), resultingStoreRefs, requiresEdit, emptyScope: resultingStoreRefs.length === 0 };
+  });
   return {
-    affectedRules,
+    affectedRules, affectedExceptions,
     transfersWholeContainerProtection: decision.action === 'map' && savedConfiguration.protectedContainerRefs.includes(decision.ref),
     destinationAlreadyProtected: decision.action === 'map' && draft.protectedContainerRefs.includes(decision.targetRef),
     removesWholeContainerProtection: decision.action === 'remove' && draft.protectedContainerRefs.includes(decision.ref)

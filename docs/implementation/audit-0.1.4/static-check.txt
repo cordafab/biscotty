@@ -1,5 +1,0 @@
-
-> biscotty@0.1.4 check
-> node scripts/check.mjs
-
-Checked 25 native source files, imports, module boundaries, privacy restrictions, and manifest.

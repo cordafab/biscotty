@@ -1,6 +1,7 @@
 # PRD: Firefox backend and cookie burner
 
-Current Site cookie-domain list: Approved; implementation present; release verification incomplete.
+Current Site stored-cookie inventory: Implementation in progress; release verification incomplete.
+The [stored-cookie inventory amendment](partition-exceptions/02-current-site-inventory.md) supersedes the historical observation requirements below.
 Owner: Track B.
 Depends on the [module interfaces](01-module-interfaces.md) and [protection rules](02-protection-and-settings.md).
 All native Firefox access belongs to this backend implementation or the backend client.
@@ -9,7 +10,7 @@ All native Firefox access belongs to this backend implementation or the backend 
 
 - **NATIVE-01.** The manifest MUST use version 3 with Firefox minimum version `153.0`.
 - **NATIVE-02.** Background execution MUST use supported Firefox event-page scripts, not a service worker assumption.
-- **NATIVE-03.** The manifest MUST request `cookies`, `storage`, `contextualIdentities`, `publicSuffix`, `webRequest`, and `webNavigation`.
+- **NATIVE-03.** The manifest MUST request `cookies`, `storage`, `contextualIdentities`, `publicSuffix`, and `webNavigation`.
 - **NATIVE-04.** Host permissions MUST cover `http://*/*` and `https://*/*`.
 - **NATIVE-05.** Private access MUST be excluded with `incognito: "not_allowed"`.
 - **NATIVE-06.** The extension MUST NOT require `tabs`, `webRequestBlocking`, `browsingData`, or `downloads` permissions.
@@ -26,8 +27,8 @@ Apply a restrictive extension-page content security policy.
 The policy must allow packaged scripts and styles while blocking outbound connections.
 The extension must make no network requests through another API or hidden page.
 
-The Current Site amendment revises NATIVE-03 and NATIVE-06 to permit passive page observation.
-The previous prohibition on `webRequest` is superseded for this purpose.
+The current inventory amendment removes the earlier request-observation requirement.
+The extension does not register `webRequest` listeners for Current Site.
 Observation must not block, redirect, or modify requests.
 See [approved amendments](08-decisions.md#current-site-amendment) and [request observation](SOURCES.md#s20-passive-request-observation).
 
@@ -74,6 +75,8 @@ The cookie-list action may enumerate a protected store when the user views its m
 
 ## Current-page cookie domains
 
+> Historical requirements: [Current Site stored-cookie inventory](partition-exceptions/02-current-site-inventory.md) supersedes the request-observation requirements below.
+
 This section defines the implemented Current Site additions.
 Release verification remains incomplete.
 The existing burner still enumerates its complete eligible store scope.
@@ -82,7 +85,7 @@ Shared operations and payload fields belong in the [action contracts](01-module-
 
 ### Page observation
 
-Version `0.1.2` adds [observation limits](10-bounded-observation.md), aggregate persistence, and explicit partial coverage after resource loss.
+Version `0.1.2` adds observation limits, aggregate persistence, and explicit partial coverage after resource loss.
 These limits refine retention without changing cookie enumeration or allow-rule meaning.
 
 - **SITE-01.** Page observation MUST use passive HTTP/HTTPS request events without requesting headers or bodies.

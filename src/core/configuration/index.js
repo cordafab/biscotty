@@ -1,6 +1,6 @@
 import { fail } from '../errors.js';
 
-export const LIMITS = Object.freeze({ bytes: 2 * 1024 * 1024, rules: 10000, containers: 1000, string: 4096, hostname: 253 });
+export const LIMITS = Object.freeze({ bytes: 2 * 1024 * 1024, rules: 10000, exceptions: 10000, containers: 1000, string: 4096, hostname: 253 });
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 function invalid(field, message) { fail('VALIDATION_FAILED', message, [{ field, message }]); }
 export function checkFields(value, fields, field = 'configuration') {
@@ -35,6 +35,7 @@ export function normalizeDomain(value) {
   return host;
 }
 export function matcherKey(rule) { return JSON.stringify([rule.domain, rule.includeSubdomains, rule.name, rule.path]); }
+export function exceptionKey(value) { return JSON.stringify([value.cookieDomain, value.cookieIncludeSubdomains, value.topLevelDomain, value.topLevelIncludeSubdomains, value.scheme, value.name, value.path]); }
 export function normalizeScope(raw, references) {
   if (!object(raw)) invalid('scope', 'Select All stores or a nonempty set of stores.');
   if (raw.type === 'all') { checkFields(raw, ['type'], 'scope'); return { type: 'all' }; }
@@ -57,13 +58,24 @@ export function normalizeRule(raw, facts = {}) {
   if (raw.path !== null) { checkString(raw.path, 'path', { empty: false }); if (!raw.path.startsWith('/')) invalid('path', 'An exact cookie path must start with /.'); }
   return { domain, includeSubdomains: raw.includeSubdomains, name: raw.name, path: raw.path, scope: normalizeScope(raw.scope) };
 }
+export function normalizeException(raw, facts = {}) {
+  checkFields(raw, ['cookieDomain', 'cookieIncludeSubdomains', 'topLevelDomain', 'topLevelIncludeSubdomains', 'scheme', 'name', 'path', 'scope', 'enabled'], 'exception');
+  // Reuse rule validation for domain facts, exact fields and scope semantics.
+  const cookie = normalizeRule({ domain: raw.cookieDomain, includeSubdomains: raw.cookieIncludeSubdomains, name: raw.name, path: raw.path, scope: raw.scope }, facts);
+  const site = normalizeRule({ domain: raw.topLevelDomain, includeSubdomains: raw.topLevelIncludeSubdomains, name: null, path: null, scope: raw.scope }, facts);
+  if (!['all', 'http', 'https'].includes(raw.scheme)) invalid('scheme', 'Choose both schemes, HTTP, or HTTPS.');
+  if (typeof raw.enabled !== 'boolean') invalid('enabled', 'Choose whether the exception is enabled.');
+  return { cookieDomain: cookie.domain, cookieIncludeSubdomains: cookie.includeSubdomains, topLevelDomain: site.domain, topLevelIncludeSubdomains: site.includeSubdomains, scheme: raw.scheme, name: cookie.name, path: cookie.path, scope: cookie.scope, enabled: raw.enabled };
+}
 export function validateConfiguration(raw, facts = {}) {
-  checkFields(raw, ['schemaVersion', 'revision', 'containerBindings', 'protectedContainerRefs', 'rules']);
-  if (raw.schemaVersion !== 1 || !Number.isSafeInteger(raw.revision) || raw.revision < 0) invalid('schemaVersion', 'The configuration version or revision is invalid.');
+  const version = raw?.schemaVersion;
+  checkFields(raw, version === 2 ? ['schemaVersion', 'revision', 'containerBindings', 'protectedContainerRefs', 'rules', 'exceptions'] : ['schemaVersion', 'revision', 'containerBindings', 'protectedContainerRefs', 'rules']);
+  if (![1, 2].includes(version) || !Number.isSafeInteger(raw.revision) || raw.revision < 0) invalid('schemaVersion', 'The configuration version or revision is invalid.');
   if (!Array.isArray(raw.containerBindings) || raw.containerBindings.length > LIMITS.containers) invalid('containerBindings', 'The container limit is 1,000.');
   if (!Array.isArray(raw.rules) || raw.rules.length > LIMITS.rules) invalid('rules', 'The allow-rule limit is 10,000.');
+  if (version === 2 && (!Array.isArray(raw.exceptions) || raw.exceptions.length > LIMITS.exceptions)) invalid('exceptions', 'The exception limit is 10,000.');
   if (!Array.isArray(raw.protectedContainerRefs)) invalid('protectedContainerRefs', 'Protected references must be an array.');
-  checkSize({ rules: raw.rules, protectedContainerRefs: raw.protectedContainerRefs });
+  checkSize(version === 2 ? { rules: raw.rules, protectedContainerRefs: raw.protectedContainerRefs, exceptions: raw.exceptions } : { rules: raw.rules, protectedContainerRefs: raw.protectedContainerRefs });
   const references = new Set(['normal']);
   const nativeIds = new Set();
   const containerBindings = raw.containerBindings.map(binding => {
@@ -92,5 +104,17 @@ export function validateConfiguration(raw, facts = {}) {
     keys.add(key);
     return rule;
   });
-  return { schemaVersion: 1, revision: raw.revision, containerBindings, protectedContainerRefs: protectedContainerRefs.sort(), rules };
+  const result = { schemaVersion: version, revision: raw.revision, containerBindings, protectedContainerRefs: protectedContainerRefs.sort(), rules };
+  if (version === 2) {
+    const exceptionKeys = new Set();
+    result.exceptions = raw.exceptions.map(entry => {
+      const exception = normalizeException(entry, facts);
+      exception.scope = normalizeScope(exception.scope, references);
+      const key = exceptionKey(exception);
+      if (exceptionKeys.has(key)) invalid('exceptions', 'Identical canonical exception matchers require one consolidated scope.');
+      exceptionKeys.add(key);
+      return exception;
+    });
+  }
+  return result;
 }

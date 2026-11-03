@@ -26,9 +26,23 @@ test('CFG-A01 confirmed first install writes empty protection; unexpected absenc
   assert.equal(fx.controls.writes, 0);
   assert.ok(fx.configuration.view().recoveryToken);
   await fx.configuration.initialize({ firstInstall: true });
-  assert.deepEqual(fx.configuration.view().configuration, { rules: [], protectedContainerRefs: [] });
+  assert.deepEqual(fx.configuration.view().configuration, { rules: [], protectedContainerRefs: [], exceptions: [] });
   assert.equal(fx.configuration.view().revision, 0);
   assert.equal(fx.read().containerBindings.length, 1);
+});
+test('partition exception actions validate revisions and preserve unrelated protection', async () => {
+  const fx = fixture({ ...emptyRecord(), rules: [rule()] }); await fx.configuration.initialize();
+  const dispatch = createGateway({ extensionId: sender.id, baseURL: 'moz-extension://test/', handlers: fx.configuration.handlers });
+  const request = (action, payload, revision) => dispatch(envelope(action, payload, revision), sender);
+  const exception = { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.test', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true };
+  assert.equal((await request('createException', { exception }, 0)).ok, true);
+  assert.equal((await request('setExceptionEnabled', { index: 0, enabled: false }, 0)).error.code, 'REVISION_CONFLICT');
+  assert.equal((await request('setExceptionEnabled', { index: 0, enabled: false }, 1)).ok, true);
+  assert.equal((await request('listExceptions', {}, 2)).data.exceptions[0].enabled, false);
+  assert.equal((await request('updateException', { index: 0, exception: { ...exception, scheme: 'https' } }, 2)).ok, true);
+  assert.equal((await request('deleteException', { index: 0 }, 3)).ok, true);
+  assert.deepEqual(fx.read().rules, [rule()]);
+  assert.equal(fx.read().revision, 4);
 });
 test('CFG-A02 invalid settings block mutation, retain observed state and supply recovery choices', async () => {
   const fx = fixture({ invalid: true });
@@ -255,4 +269,65 @@ test('a save cannot overwrite newly observed external protection even when its n
   const response = await fx.save([rule({ name: 'draft' })], 0);
   assert.equal(response.error.code, 'REVISION_CONFLICT');
   assert.deepEqual(fx.read(), externallyChanged);
+});
+
+test('version 1 migration preserves protection and revision; failed writes block access', async () => {
+  const original = { ...emptyRecord(), revision: 7, rules: [rule()] };
+  const fx = fixture(original); await fx.configuration.initialize();
+  const migrated = fx.read();
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.revision, 7);
+  assert.deepEqual(migrated.rules, original.rules);
+  assert.deepEqual(migrated.exceptions, []);
+  const broken = fixture(original); broken.controls.writeFails = true;
+  await broken.configuration.initialize();
+  assert.equal(broken.configuration.view().configurationStatus, 'unreadable');
+  assert.equal(broken.configuration.view().configuration, null);
+  assert.throws(() => broken.configuration.assertRevision(7), { code: 'CONFIGURATION_UNAVAILABLE' });
+});
+test('version 2 drafts save exceptions and legacy drafts preserve them', async () => {
+  const fx = fixture(emptyRecord()); await fx.configuration.initialize();
+  const exception = { cookieDomain: 'example.com', cookieIncludeSubdomains: false, topLevelDomain: 'other.test', topLevelIncludeSubdomains: false, scheme: 'all', name: null, path: null, scope: { type: 'all' }, enabled: true };
+  const saved = await fx.save([rule()], 0, { exceptions: [exception] });
+  assert.equal(saved.ok, true);
+  assert.deepEqual(fx.read().exceptions, [exception]);
+  const legacySave = await fx.save([rule({ name: 'updated' })], 1);
+  assert.equal(legacySave.ok, true);
+  assert.deepEqual(fx.read().exceptions, [exception]);
+});
+
+test('migration confirms the stored v2 record and defers while an operation is locked', async () => {
+  const original = { ...emptyRecord(), revision: 3, rules: [rule()] };
+  const silent = fixture(original);
+  silent.adapter.writeConfigurationRecord = async () => {};
+  await silent.configuration.initialize();
+  assert.equal(silent.configuration.view().configurationStatus, 'unreadable');
+  assert.equal(silent.configuration.view().configuration, null);
+  assert.deepEqual(silent.read(), original);
+  const locked = fixture(original);
+  locked.controls.locked = true;
+  await locked.configuration.initialize();
+  assert.equal(locked.configuration.view().revision, 3);
+  assert.deepEqual(locked.configuration.view().configuration.exceptions, []);
+  assert.equal(locked.read().schemaVersion, 1);
+  locked.controls.locked = false;
+  await locked.configuration.initialize();
+  assert.equal(locked.read().schemaVersion, 2);
+  assert.equal(locked.read().revision, 3);
+});
+
+test('migration does not expose an unconfirmed record while its write is pending', async () => {
+  const fx = fixture({ ...emptyRecord(), rules: [rule()] });
+  let entered, release;
+  const started = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const write = fx.adapter.writeConfigurationRecord;
+  fx.adapter.writeConfigurationRecord = async value => { entered(); await gate; await write(value); };
+  const pending = fx.configuration.initialize();
+  await started;
+  assert.equal(fx.configuration.view().configuration, null);
+  assert.equal(fx.configuration.view().configurationStatus, 'unreadable');
+  release(); await pending;
+  assert.equal(fx.configuration.view().configurationStatus, 'valid');
+  assert.equal(fx.read().schemaVersion, 2);
 });

@@ -1,0 +1,16 @@
+{
+  "sha256": "6beb34707f9c30972f988bcef33cf63812413bfebeb69f871735de4661f8d141",
+  "entries": 31,
+  "bad_crc_entry": null,
+  "unexpected_entries": [],
+  "absolute_workspace_path_present": false,
+  "source_maps": [],
+  "network_code_matches": [],
+  "external_urls": [
+    "http://${host}/",
+    "http://${input}/",
+    "http://*/*",
+    "http://www.w3.org/2000/svg",
+    "https://*/*"
+  ]
+}

@@ -15,16 +15,19 @@ See the [language rules](docs/prd/LANGUAGE.md) and the [document review](docs/pr
 | Document | Use |
 | --- | --- |
 | [PRD authoring guide](AGENT.md) | Write and maintain requirements, decisions, interfaces, and acceptance cases. |
+| [Current Site stored-cookie inventory](docs/prd/partition-exceptions/02-current-site-inventory.md) | Review the approved replacement for request observation. |
+| [Settings cookie inventory](docs/prd/partition-exceptions/01-settings-inventory.md) | Review the approved inventory and burnable or keep choices. |
+| [Partition-specific deletion exceptions](docs/prd/partition-exceptions/00-design.md) | Review the approved design amendment and its behavior animation. |
 | [Product PRD](docs/prd/00-product.md) | Read the product scope and the required behavior. |
 | [Module interfaces](docs/prd/01-module-interfaces.md) | Read the frontend, backend, and pure logic contracts before implementation. |
 | [Protection and settings PRD](docs/prd/02-protection-and-settings.md) | Implement cookie rules and configuration storage. |
 | [Firefox backend and burner PRD](docs/prd/03-firefox-backend-and-burner.md) | Implement Firefox access and safe deletion. |
+| [Frontend refresh PRD](docs/prd/12-frontend-refresh.md) | Review the implemented action-first popup, selected-container inspection, and five Settings tabs. |
 | [Frontend PRD](docs/prd/04-frontend.md) | Implement the toolbar menu and configuration editor. |
 | [Configuration transfer PRD](docs/prd/05-configuration-transfer.md) | Implement portable export, import, mapping, and conflict decisions. |
 | [Verification and release PRD](docs/prd/06-verification-and-release.md) | Verify the extension and prepare a signed release. |
 | [Agent work plan](docs/prd/07-agent-plan.md) | Assign work, respect file ownership, and integrate the modules. |
 | [0.1 publishing PRD](docs/prd/09-publishing-0.1.md) | Prepare version 0.1.5 for Mozilla submission and track release evidence. |
-| [Observation limits PRD](docs/prd/10-bounded-observation.md) | Bound page activity, retained metadata, and session writes. |
 | [Request limits PRD](docs/prd/11-bounded-requests.md) | Bound mutation deduplication and reject capacity before execution. |
 | [Decision record](docs/prd/08-decisions.md) | Trace each design decision to its requirements. |
 | [Glossary](GLOSSARY.md) | Use the agreed product terms. |
@@ -49,10 +52,8 @@ npm run check
 npm run package
 ```
 
-The unsigned package is `dist/biscotty-0.1.5.zip`, with a SHA-256 file beside it.
+The unsigned package is `dist/biscotty-0.2.1.zip`, with a SHA-256 file beside it.
 See [release preparation](docs/implementation/release.md) for packaging, permissions, and submission information.
-See [publication audit corrections](docs/implementation/publication-fixes-0.1.3.md) for the export-size, import-mapping, and observation-recovery fixes.
-See [0.1.5 corrections](docs/implementation/publication-fixes-0.1.5.md) for document restoration and terminal cancellation fixes.
 See [native test instructions](docs/implementation/verification.md#run-native-tests) for disposable Firefox tests.
 
 ## Source layout
@@ -65,13 +66,16 @@ See [native test instructions](docs/implementation/verification.md#run-native-te
 | `tests/` | Standard-library tests, controlled adapters, and disposable native Firefox checks. |
 | `scripts/` | Static checks and deterministic native-source packaging. |
 
-The implementation follows the [agent plan](docs/prd/07-agent-plan.md) and [shared contracts](docs/implementation/interfaces.md).
+The implementation follows the [agent plan](docs/prd/07-agent-plan.md) and [module interfaces](docs/prd/01-module-interfaces.md).
 The backend owns every Firefox API call. GUI code uses the public backend client.
 The extension initiates no network requests, collects no telemetry, and retains no operation history.
-Current Site passively observes contacted hosts while the popup is closed and retains bounded current-page metadata in session memory.
-If activity exceeds a limit, the popup reports incomplete coverage and requires a fresh page review before saving protection.
-Version 0.1.2 adds observation limits, batched storage writes, and safe bounded mutation deduplication.
-Version 0.1.3 fixes startup storage recovery; see the [security review and correction](docs/implementation/publication-security-review-0.1.2.md#startup-recovery-correction).
+Current Site shows stored cookies with known association to the current site and store.
+The extension does not observe page requests or retain contacted hosts.
+Partition exceptions can override matching allow rules for supported third-party partitions; whole-container protection and deletion safety still apply.
+Settings provides stored-cookie inventory, rule and exception drafts, and reviewed inventory choices.
+The new partition and inventory behavior still requires complete Firefox and release verification.
+Mutation deduplication uses bounded memory and rejects requests when capacity is exhausted.
+Version 0.1.3 fixes startup storage recovery.
 Version 0.1.4 fixes portable export size, imported-reference choices, and observation coverage recovery.
 Version 0.1.5 verifies restored document identities and rejects cancellation during terminal cleanup.
 
