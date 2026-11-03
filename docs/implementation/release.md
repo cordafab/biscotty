@@ -104,7 +104,7 @@ No browsing history, cookie values, telemetry, or native identifiers are exporte
 | Field | Status |
 | --- | --- |
 | Distribution | Public AMO listing proposed; no submission performed. |
-| License | The repository declares GPL-3.0-only; the release owner must confirm the listing metadata. |
+| License | The repository declares MIT; the release owner must reflect this license in the listing metadata. |
 | Support | The release owner must supply a support contact or website. |
 | Categories and listing assets | Select categories and prepare final listing images in AMO. |
 | Developer account and identity availability | Not inspected; the release owner must confirm them. |

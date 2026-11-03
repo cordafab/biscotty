@@ -1,94 +1,37 @@
 # Biscotty
 
-Biscotty is a Firefox cookie manager.
-This repository contains the native Firefox extension and approved requirements for version 1.
-Implementation uses JavaScript, HTML, CSS, and Firefox APIs with no external libraries.
-Release acceptance remains incomplete; see the [verification record](docs/implementation/verification.md).
-The Current Site cookie-domain list is implemented; release verification remains incomplete; see the [frontend PRD](docs/prd/04-frontend.md#current-site-domain-list).
+**Clear unwanted cookies. Keep the ones that matter.**
 
-The user approved the design on 25 October 2026.
-The requirements use ASD-STE100 Issue 9 as their writing standard.
-See the [language rules](docs/prd/LANGUAGE.md) and the [document review](docs/prd/REVIEW.md) for the review limits.
+Biscotty is a Firefox extension that helps you clean up cookies while preserving the sites and sessions you choose. Protect what you want to keep, preview a cleanup, then confirm when you are ready. Biscotty calls this a **burn**.
 
-## Read the requirements
+## Why Biscotty?
 
-| Document | Use |
-| --- | --- |
-| [PRD authoring guide](AGENT.md) | Write and maintain requirements, decisions, interfaces, and acceptance cases. |
-| [Current Site stored-cookie inventory](docs/prd/partition-exceptions/02-current-site-inventory.md) | Review the approved replacement for request observation. |
-| [Settings cookie inventory](docs/prd/partition-exceptions/01-settings-inventory.md) | Review the approved inventory and burnable or keep choices. |
-| [Partition-specific deletion exceptions](docs/prd/partition-exceptions/00-design.md) | Review the approved design amendment and its behavior animation. |
-| [Product PRD](docs/prd/00-product.md) | Read the product scope and the required behavior. |
-| [Module interfaces](docs/prd/01-module-interfaces.md) | Read the frontend, backend, and pure logic contracts before implementation. |
-| [Protection and settings PRD](docs/prd/02-protection-and-settings.md) | Implement cookie rules and configuration storage. |
-| [Firefox backend and burner PRD](docs/prd/03-firefox-backend-and-burner.md) | Implement Firefox access and safe deletion. |
-| [Frontend refresh PRD](docs/prd/12-frontend-refresh.md) | Review the implemented action-first popup, selected-container inspection, and five Settings tabs. |
-| [Frontend PRD](docs/prd/04-frontend.md) | Implement the toolbar menu and configuration editor. |
-| [Configuration transfer PRD](docs/prd/05-configuration-transfer.md) | Implement portable export, import, mapping, and conflict decisions. |
-| [Verification and release PRD](docs/prd/06-verification-and-release.md) | Verify the extension and prepare a signed release. |
-| [Agent work plan](docs/prd/07-agent-plan.md) | Assign work, respect file ownership, and integrate the modules. |
-| [0.1 publishing PRD](docs/prd/09-publishing-0.1.md) | Prepare version 0.1.5 for Mozilla submission and track release evidence. |
-| [Request limits PRD](docs/prd/11-bounded-requests.md) | Bound mutation deduplication and reject capacity before execution. |
-| [Decision record](docs/prd/08-decisions.md) | Trace each design decision to its requirements. |
-| [Glossary](GLOSSARY.md) | Use the agreed product terms. |
-| [Sources](docs/prd/SOURCES.md) | Check Firefox constraints and language sources. |
+Biscotty gives you more control than a blanket cookie cleanup, with a few practical advantages:
 
-## Run and package
+- **Keep useful sessions.** Protect cookies for your chosen sites so you can clean up without signing out of everything. For finer control, protect individual cookies.
+- **Treat containers differently.** Keep an entire Firefox container untouched, or protect a site only in selected containers—for example, keep its Work session while clearing its Personal session.
+- **Works with Firefox Total Cookie Protection.** Firefox's [Total Cookie Protection](https://www.firefox.com/en-US/features/total-cookie-protection/) keeps a separate cookie jar for each website, including cookies from embedded third-party services. Biscotty supports these jars, so you can keep a service's cookies while making its third-party cookies on selected sites eligible for cleanup.
+- **Review before deleting.** Every burn starts with a preview and needs your confirmation. You decide when cleanup happens; there is no automatic deletion.
+- **See what is stored.** Browse stored cookies in Settings or inspect cookie domains associated with the current site, then adjust what you keep.
+- **Take your preferences with you.** Export and import protection settings as a local file, without copying cookie values.
+- **Keep cleanup private.** Biscotty makes no network requests, collects no telemetry, and keeps no cleanup history.
 
-Firefox desktop 153.0 or later is required. Private browsing is excluded.
-Open `about:debugging#/runtime/this-firefox` in a disposable Firefox profile.
-Select **Load Temporary Add-on**, then choose `manifest.json`.
-Grant HTTP and HTTPS access and keep Firefox containers enabled.
-Use the Biscotty toolbar button to preview a burn or open Settings.
+A burn covers regular browsing and all eligible Firefox containers, including those without open tabs. Protected cookies and containers are skipped, and your tabs stay open.
 
-The initial allow list and protected-container set are empty.
-Review protection before confirming a burn. Burning can sign you out, and websites can recreate cookies.
+## Try it
 
-No dependency installation or bundler is required. Use Node.js 22 or later:
+Biscotty is currently an **unsigned development build**; release verification is still in progress. It requires Firefox desktop 153 or later and does not support private browsing.
 
-```sh
-npm test
-npm run check
-npm run package
-```
+1. Download or clone this repository.
+2. In a separate Firefox test profile, open `about:debugging#/runtime/this-firefox`.
+3. Choose **Load Temporary Add-on** and select `manifest.json`.
+4. Grant website access, keep Firefox containers enabled, and open Biscotty from the toolbar.
+5. Protect the sites or containers you want to keep, then preview your first burn.
 
-The unsigned package is `dist/biscotty-0.2.1.zip`, with a SHA-256 file beside it.
-See [release preparation](docs/implementation/release.md) for packaging, permissions, and submission information.
-See [native test instructions](docs/implementation/verification.md#run-native-tests) for disposable Firefox tests.
+No sites or containers are protected by default. Deleting cookies can sign you out, and websites can create new cookies afterward. Biscotty cleans up stored cookies; it does not block websites from creating them.
 
-## Source layout
-
-| Path | Responsibility |
-| --- | --- |
-| `src/core/` | Pure validation, matching, selector safety, and transfer calculations. |
-| `src/backend/` | Firefox adapters, gateway, queued settings, burner, transfer, and public client. |
-| `src/frontend/` | Toolbar popup and full-page configuration editor. |
-| `tests/` | Standard-library tests, controlled adapters, and disposable native Firefox checks. |
-| `scripts/` | Static checks and deterministic native-source packaging. |
-
-The implementation follows the [agent plan](docs/prd/07-agent-plan.md) and [module interfaces](docs/prd/01-module-interfaces.md).
-The backend owns every Firefox API call. GUI code uses the public backend client.
-The extension initiates no network requests, collects no telemetry, and retains no operation history.
-Current Site shows stored cookies with known association to the current site and store.
-The extension does not observe page requests or retain contacted hosts.
-Partition exceptions can override matching allow rules for supported third-party partitions; whole-container protection and deletion safety still apply.
-Settings provides stored-cookie inventory, rule and exception drafts, and reviewed inventory choices.
-The new partition and inventory behavior still requires complete Firefox and release verification.
-Mutation deduplication uses bounded memory and rejects requests when capacity is exhausted.
-Version 0.1.3 fixes startup storage recovery.
-Version 0.1.4 fixes portable export size, imported-reference choices, and observation coverage recovery.
-Version 0.1.5 verifies restored document identities and rejects cancellation during terminal cleanup.
-
-## Requirement words
-
-MUST identifies a required result.
-MUST NOT identifies a prohibited result.
-An example explains a requirement; it does not replace that requirement.
-
-The product PRD controls product behavior.
-The module interfaces control shared data and action names.
-Record and correct a document conflict before dependent implementation.
+For development, packaging, and verification details, see the [release guide](docs/implementation/release.md). The [product requirements](docs/prd/00-product.md) describe the full behavior.
 
 ## License
 
-Licensed under the GNU General Public License version 3 (GPL-3.0-only). See [LICENSE](LICENSE) for the full text.
+Biscotty is available under the [MIT License](LICENSE).
